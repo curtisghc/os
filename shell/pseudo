@@ -5,16 +5,16 @@ main(){
 	}
 }
 execute(input){
-	if(fork < 0){
+	if(fork < 0)
 		failed to fork;
-	}else if(fork > 0){
-	      	wait();      
-	}else{
-		if((execvp(input) >= 0){
+	else if(fork > 0)
+	      wait();      
+	else
+		if((execvp(input) >= 0)
 	      	       process executed;
-		}else{
+		else
 			process failed to execute;
-	  	}
+	  	
 	}	
 }
 parse(input){
