@@ -1,0 +1,4 @@
+all: compile
+
+compile:
+	gcc -o simulator simulator.c queue.h
