@@ -17,7 +17,7 @@ execute(input){
 	  	
 	}	
 }
-char[][]  arse(input){
+char[][]  parse(input){
 	  return 2d array of input, split at whitespace;
 }
 
