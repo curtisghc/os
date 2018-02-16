@@ -17,5 +17,8 @@ execute(input){
 	  	
 	}	
 }
-parse(input){
-	return split(input);
+char[][]  arse(input){
+	  return 2d array of input, split at whitespace;
+}
+
+	
