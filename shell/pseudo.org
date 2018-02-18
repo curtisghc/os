@@ -1,0 +1,31 @@
+* Pseudocode listings
+** Main Functions
+	main(){
+		while(input != "quit"){
+			parse(input);
+			execute(input);
+		}
+	}
+	execute(input){
+		if(fork < 0)
+			failed to fork;
+		else if(fork > 0)
+			wait();
+		else
+			if((execvp(input) >= 0)
+				process executed;
+			else
+				process failed to execute;
+		}
+	}
+	char[][]  parse(input){
+		return 2d array of input, split at whitespace;
+	}
+** Builtins
+   cd(char **args){
+       if(chdir(args[1]) == -1){
+           printf(stderr, "Failed to change directory");
+       }
+   }
+
+
