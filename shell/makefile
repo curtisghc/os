@@ -6,7 +6,7 @@ CLEANUP=rm -rf shell *.gch
 all: compile
 
 compile:
-	$(CC) $(CFLAGS) test.c
+	$(CC) $(CFLAGS) -o shell shell.c
 clean:
 	$(CLEANUP)
 

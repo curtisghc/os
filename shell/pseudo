@@ -1,24 +1,21 @@
 main(){
 	while(input != "quit"){
-		    parse(input);
-		    execute(input);
+		parse(input);
+		execute(input);
 	}
 }
 execute(input){
 	if(fork < 0)
 		failed to fork;
 	else if(fork > 0)
-	      wait();      
+	    wait();
 	else
 		if((execvp(input) >= 0)
-	      	       process executed;
+			process executed;
 		else
 			process failed to execute;
-	  	
-	}	
+	}
 }
 char[][]  parse(input){
-	  return 2d array of input, split at whitespace;
+	return 2d array of input, split at whitespace;
 }
-
-	
