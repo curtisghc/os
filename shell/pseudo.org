@@ -1,31 +1,66 @@
-* Pseudocode listings
-** Main Functions
-	main(){
-		while(input != "quit"){
-			parse(input);
-			execute(input);
-		}
-	}
-	execute(input){
-		if(fork < 0)
-			failed to fork;
-		else if(fork > 0)
-			wait();
-		else
-			if((execvp(input) >= 0)
-				process executed;
-			else
-				process failed to execute;
-		}
-	}
-	char[][]  parse(input){
-		return 2d array of input, split at whitespace;
-	}
-** Builtins
-   cd(char **args){
-       if(chdir(args[1]) == -1){
-           printf(stderr, "Failed to change directory");
-       }
-   }
+* Pseudocode
+** myshell.c
+#+BEGIN_SRC [c-mode]
+main(){
+    while(input != "quit"){
+        parse(input);
+        execute(input);
+    }
+}
+execute(input){
+    if(fork < 0)
+        failed to fork;
+    else if(fork > 0)
+        wait();
+    else
+        if(input matches builtin function){
+            call builtin function;
+        }else if(execvp(input) >= 0){
+            process executed;
+        else
+            process failed to execute;
+    }
+}
+char[][]  parse(input){
+    return 2d array of input, split at whitespace;
+}
+#+END_SRC
+** utilities.c
+#+BEGIN_SRC [c-mode]
+cd(char **args){
+    if(no parameters){
+        pwd();
+    } else if(chdir(first parameter) == -1){
+        printf(stderr, "Failed to change directory");
+    }
+}
 
+pwd(){
+    printf("%s", getcwd());
+}
 
+cls(){
+    printf("\033[2j");
+}
+
+dir(){
+    system(ls);
+}
+
+environ(){
+    print all environment variable;
+}
+
+echo(input){
+    for(each parameter in input array)
+        printf("%s", parameter);
+}
+
+help(){
+    print help dialogue;
+}
+
+pause(){
+    while(get char != "\n");
+}
+#+END_SRC
