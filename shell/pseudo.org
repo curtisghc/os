@@ -16,7 +16,6 @@ main(char **argv){
 
 execute(input, int background){
     int pid = fork();
-    int status
     if(pid < 0)
         failed to fork;
         exit;
