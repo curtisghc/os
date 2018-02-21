@@ -20,7 +20,7 @@ execute(input, int background){
     if(pid < 0)
         failed to fork;
         exit;
-	else if(pid == 0)
+    else if(pid == 0)
         if(input matches builtin function)
             call builtin function;
         else
