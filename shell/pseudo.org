@@ -48,7 +48,7 @@ char[][]  parse(input){
 #+END_SRC
 ** utilities.c
 #+BEGIN_SRC [c-mode]
-cd(char **args){
+cd(input){
     if(no parameters)
         pwd();
     else if(chdir(first parameter) == -1)
