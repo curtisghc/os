@@ -1,26 +1,47 @@
 * Pseudocode
 ** myshell.c
 #+BEGIN_SRC [c-mode]
-main(){
-    while(input != "quit"){
-        parse(input);
-        execute(input);
-    }
-}
-execute(input){
-    if(fork < 0)
-        failed to fork;
-    else if(fork > 0)
-        wait();
+main(char **argv){
+    if(argv is not empty)
+        execute(argv);
     else
-        if(input matches builtin function){
-            call builtin function;
-        }else if(execvp(input) >= 0){
-            process executed;
-        else
-            process failed to execute;
-    }
+		while(input != "quit")
+			parse(input);
+            if(input contains i/o redirection)
+                execute_redirected(input);
+            else
+				execute(input);
 }
+
+execute(input, int background){
+    int pid = fork();
+    int status
+    if(pid < 0)
+        failed to fork;
+        exit;
+	else if(pid == 0)
+        if(input matches builtin function)
+            call builtin function;
+        else
+			(execvp(input) >= 0){
+    else if(pid > 0 && '&' is not at the end of the input)
+		wait();
+}
+
+execute_redirected(){
+    create pipe;
+    int pid1 = fork();
+    if(pid < 0)
+        failed to setup pipe;
+        exit;
+    if(pid > 0)
+		redirect stdout to pipe write;
+		execvp(input before redirection token);
+    if(pid == 0)
+        redirect stdin to pipe read;
+        execvp(iputs after redirection token);
+}
+
 char[][]  parse(input){
     return 2d array of input, split at whitespace;
 }
@@ -28,11 +49,10 @@ char[][]  parse(input){
 ** utilities.c
 #+BEGIN_SRC [c-mode]
 cd(char **args){
-    if(no parameters){
+    if(no parameters)
         pwd();
-    } else if(chdir(first parameter) == -1){
+    else if(chdir(first parameter) == -1)
         printf(stderr, "Failed to change directory");
-    }
 }
 
 pwd(){
@@ -53,7 +73,7 @@ environ(){
 
 echo(input){
     for(each parameter in input array)
-        printf("%s", parameter);
+        printf("%s ", parameter);
 }
 
 help(){
