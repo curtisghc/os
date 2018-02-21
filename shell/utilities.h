@@ -27,7 +27,7 @@ void pwd(){
 }
 
 void cls(){
-  printf("\033[2j");
+  printf("\033[2J");
 }
 
 void dir(){
@@ -43,8 +43,9 @@ void dir(){
 }
 
 void environ(){
-  printf("under constructuon\n");
+  printf("under construction\n");
 }
+//fix this
 
 void echo(char **input){
   input++;
@@ -52,11 +53,13 @@ void echo(char **input){
 	printf("%s ", *input);
 	input++;
   }
+  printf("\n");
 }
 
 void help(){
   printf("All the help you need: 8==D \n");
 }
+//come up with help dialogue
 
 void _pause(){
   getc(stdin);

@@ -86,7 +86,7 @@ int check_builtin(char **input){
 	echo(input);
   else if(strcmp(command, "help") == 0)
 	help(input);
-  else if(strcmp(command, "_pause") == 0)
+  else if(strcmp(command, "pause") == 0)
 	_pause();
   else
 	return 0;
@@ -107,8 +107,10 @@ int main(int argc, char **argv){
 	}
 	execute(args_parsed);
   }
+}
+
   //fix issue with exit- for each command entered, exit must be entered
   //an extra time to actually exit
   //something to do with mock prompts, i think
-}
 
+//still need to add io redirection
