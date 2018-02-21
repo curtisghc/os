@@ -9,7 +9,7 @@ run: compile
 	./myshell
 
 compile:
-	$(CC) $(CFLAGS) -o myshell myshell.c
+	$(CC) $(CFLAGS) -o myshell myshell.c utilities.h
 
 clean:
 	$(CLEANUP)
