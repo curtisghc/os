@@ -39,7 +39,7 @@ void  execute(char **argv)
      }
 }
 
-void  main(void)
+void main(void)
 {
      char  line[1024];             /* the input line                 */
      char  *argv[64];              /* the command line argument      */
