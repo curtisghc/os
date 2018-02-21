@@ -51,8 +51,6 @@ execute_redirected(input){
             execvp(to);
 }
 
-
-
 char[][]  parse(input){
     return 2d array of input, split at whitespace;
 }
