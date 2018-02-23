@@ -27,7 +27,7 @@ void pwd(){
 }
 
 void cls(){
-  printf("\033[2J");
+  printf("\033[H\033[J");
 }
 
 void dir(){

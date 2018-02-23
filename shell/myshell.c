@@ -35,7 +35,7 @@ void parse(char *args, char **args_parsed){
 //process should not be waited for by the parent.
 int execute_in_background(char **input){
   //set background boolean to true if input has '&'
-  while(**input != '\0'){
+  while(**input != '\0' && **input != '\n'){
 	if(**input == '&'){
 	  return 1;
 	}
@@ -96,16 +96,34 @@ int check_builtin(char **input){
 int main(int argc, char **argv){
   char args[1024];
   char *args_parsed[64];
+  FILE *fp = fopen(argv[1], "r");
 
-  while(1){
-	printf("prompt > ");
-	fgets(args, 1024, stdin);
-	printf("\n");
-	parse(args, args_parsed);
-	if(strcmp(args_parsed[0], "exit") == 0){
-	  return 0;
+  //if file contains script
+  if(fp != NULL){
+	while(fgets(args, 1024, fp) != NULL){
+	  parse(args, args_parsed);
+	  execute(args_parsed);
 	}
-	execute(args_parsed);
+	/*
+	while(!feof(fp)){
+	  if(fscanf(fp, "%1023[^\n]\n", args) != EOF){
+		parse(args, args_parsed);
+		execute(args_parsed);
+	  }
+	}
+	*/
+  }else{
+	//otherwise prompt user
+	while(1){
+		printf("prompt > ");
+		fgets(args, 1024, stdin);
+		printf("\n");
+		parse(args, args_parsed);
+		if(strcmp(args_parsed[0], "exit") == 0){
+		return 0;
+		}
+		execute(args_parsed);
+	}
   }
 }
 
