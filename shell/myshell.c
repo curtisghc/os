@@ -115,7 +115,7 @@ int main(int argc, char **argv){
   }else{
 	//otherwise prompt user
 	while(1){
-		printf("prompt > ");
+		printf("MYSHELL > ");
 		fgets(args, 1024, stdin);
 		printf("\n");
 		parse(args, args_parsed);

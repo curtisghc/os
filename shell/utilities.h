@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <dirent.h>
 
@@ -43,7 +44,14 @@ void dir(){
 }
 
 void environ(){
-  printf("under construction\n");
+  printf("PATH: %s\n", getenv("PATH"));
+  printf("HOME: %s\n", getenv("HOME"));
+  printf("PWD: %s\n", getenv("PWD"));
+  printf("OLDPWD: %s\n", getenv("OLDPWD"));
+  printf("SHELL: %s\n", getenv("SHELL"));
+  printf("TERM: %s\n", getenv("TERM"));
+  printf("USER: %s\n", getenv("USER"));
+  printf("LANG: %s\n", getenv("LANG"));
 }
 //fix this
 
