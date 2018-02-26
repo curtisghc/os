@@ -70,7 +70,7 @@ void help(){
 //come up with help dialogue
 
 void _pause(){
-  getc(stdin);
+  while('\n' != getc(stdin));
 }
 
 
