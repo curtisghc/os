@@ -81,7 +81,7 @@ int check_builtin(char **input){
   else if(strcmp(command, "dir") == 0)
 	dir();
   else if(strcmp(command, "environ") == 0)
-	environ();
+	_environ();
   else if(strcmp(command, "echo") == 0)
 	echo(input);
   else if(strcmp(command, "help") == 0)

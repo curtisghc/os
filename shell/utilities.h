@@ -3,11 +3,12 @@
 #include <unistd.h>
 #include <dirent.h>
 
+
 void cd(char **input);
 void pwd();
 void cls();
 void dir();
-void environ();
+void _environ();
 void echo(char **input);
 void help();
 void _pause();
@@ -43,17 +44,13 @@ void dir(){
   }
 }
 
-void environ(){
-  printf("PATH: %s\n", getenv("PATH"));
-  printf("HOME: %s\n", getenv("HOME"));
-  printf("PWD: %s\n", getenv("PWD"));
-  printf("OLDPWD: %s\n", getenv("OLDPWD"));
-  printf("SHELL: %s\n", getenv("SHELL"));
-  printf("TERM: %s\n", getenv("TERM"));
-  printf("USER: %s\n", getenv("USER"));
-  printf("LANG: %s\n", getenv("LANG"));
+void _environ(){
+  extern char **environ;
+  while(*environ != NULL){
+	printf("%s\n", *environ++);
+  }
 }
-//fix this
+//use for loop to print elements of environ global variable
 
 void echo(char **input){
   input++;
