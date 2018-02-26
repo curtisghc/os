@@ -96,30 +96,26 @@ int check_builtin(char **input){
 int main(int argc, char **argv){
   char args[1024];
   char *args_parsed[64];
-  FILE *fp = fopen(argv[1], "r");
-
-  //if file contains script
-  if(fp != NULL){
-	while(fgets(args, 1024, fp) != NULL){
-	  parse(args, args_parsed);
-	  execute(args_parsed);
+  //if shell passed with argument
+  if(argc >= 2){
+	FILE *fp = fopen(argv[1], "r");
+	if(fp != NULL){
+	  return 1;
+	  fprintf(stderr, "ERROR: File not found %s\n", argv[1]);
+	}else{
+		while(fgets(args, 1024, fp) != NULL){
+		  parse(args, args_parsed);
+		  execute(args_parsed);
+		}
 	}
-	/*
-	while(!feof(fp)){
-	  if(fscanf(fp, "%1023[^\n]\n", args) != EOF){
-		parse(args, args_parsed);
-		execute(args_parsed);
-	  }
-	}
-	*/
+  //otherwise prompt user
   }else{
-	//otherwise prompt user
 	while(1){
 		printf("MYSHELL > ");
 		fgets(args, 1024, stdin);
 		printf("\n");
 		parse(args, args_parsed);
-		if(strcmp(args_parsed[0], "exit") == 0){
+		if(strcmp(args_parsed[0], "exit") == 0 || strcmp(args_parsed[0], "q") == 0 ){
 		return 0;
 		}
 		execute(args_parsed);
