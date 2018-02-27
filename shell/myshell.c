@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <fcntl.h>
 #include "utilities.h"
 
 void parse(char *args, char **args_parsed);
@@ -114,15 +115,17 @@ int redirected_execute(int *type, char **input){
 }
 
 int out_to_file(char **command, char *file){
+  /*
   FILE *fp = fopen(file, "w");
   if(fp == NULL){
 	fprintf(stderr, "ERROR: file not found %s", file);
 	return -1;
   }
   int fd = fileno(fp);
+  */
   pid_t pid = fork();
   int out_pipe[2];
-  int status;
+  //int status;
   if(pipe(out_pipe) == -1){
 	fprintf(stderr, "ERROR: pipe failed to initialize");
 	return -1;
@@ -137,13 +140,37 @@ int out_to_file(char **command, char *file){
 	dup2(out_pipe[1], 1);
 	//child process execution of command
 	if(run_builtin(command)){
-	  //first, check and run if input matches builtin function
-	}else if(execvp(*command, command) <= 0){
-	  //attempt to execute command from $PATH
-	  fprintf(stderr, "ERROR: Failed to execute\n");
-	  exit(1);
+	}else{
+	  execvp(*command, command);
 	}
   }else{
+
+	pid_t retpid;
+	int  child_stat;
+	while ((retpid = waitpid(pid, &child_stat, 0)) != pid && retpid != (pid_t) -1);
+
+	close(out_pipe[1]);
+
+	char buf[100];
+	ssize_t bytesread;
+
+	int fd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	if (fd == -1) {
+	  fprintf(stderr, "Opening of %s failed!\n", file);
+	  exit(1);
+	}
+
+	/* This part writes to beejoutput.txt */
+	while ((bytesread = read(out_pipe[0], buf, 100)) > 0) {
+	  write(fd, buf, bytesread);
+	}
+	lseek(fd, (off_t) 0, SEEK_SET);
+	dup2(fd, 0);
+	//execlp("wc", "wc", "-l", NULL);
+
+
+
+		/*
 	close(out_pipe[1]);
 	char read_buffer[1];
 	while(read(out_pipe[0], read_buffer, 1) > 0){
@@ -151,7 +178,9 @@ int out_to_file(char **command, char *file){
 	}
 	close(out_pipe[0]);
 	while(wait(&status) != pid);
+		*/
   }
+
 
   return 0;
 }
