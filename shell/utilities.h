@@ -14,6 +14,7 @@ void help();
 void _pause();
 
 
+//use chdir to switch directory to argument
 void cd(char **input){
   if(input[1][0] == '\0'){
 	pwd();
@@ -22,16 +23,19 @@ void cd(char **input){
   }
 }
 
+//print directory using getcwd()
 void pwd(){
   char dir[1024];
   getcwd(dir, 1024);
   printf("%s\n", dir);
 }
 
+//ascii escape key to clear screen
 void cls(){
   printf("\033[H\033[J");
 }
 
+//iterate through directory contents and print each
 void dir(){
   DIR *d;
   struct dirent *dir;
@@ -44,14 +48,15 @@ void dir(){
   }
 }
 
+//iterate through external environment variables and print each
 void _environ(){
   extern char **environ;
   while(*environ != NULL){
 	printf("%s\n", *environ++);
   }
 }
-//use for loop to print elements of environ global variable
 
+//iterate through input and print each separated by one space
 void echo(char **input){
   input++;
   while(**input != '\0'){
@@ -66,6 +71,7 @@ void help(){
 }
 //come up with help dialogue
 
+//uses getch to wait until return is entered
 void _pause(){
   while('\n' != getc(stdin));
 }
