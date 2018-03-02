@@ -1,4 +1,4 @@
-CC=gcc
+CC=gcc -std=gnu11
 CFLAGS=-Wall -g
 
 CLEANUP=rm -rf myshell *.gch

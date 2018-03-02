@@ -58,7 +58,7 @@ int *check_redirect(char **input){
   *type = -1;
 
   //for each token
-  for(int i = 0; i < 3; i++){
+  for(int i = 0; i < (sizeof(tokens)/sizeof(*tokens)); i++){
 	int location = 0;
 	//for each element of the input
 	while(**input != '\0'){
