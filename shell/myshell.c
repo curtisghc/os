@@ -58,7 +58,7 @@ int *check_redirect(char **input){
   *type = -1;
 
   //for each token
-  for(int i = 0; i < (sizeof(tokens)/sizeof(*tokens)); i++){
+  for(int i = 0; i < (signed int) (sizeof(tokens)/sizeof(*tokens)); i++){
 	int location = 0;
 	//for each element of the input
 	while(**input != '\0'){
@@ -98,31 +98,37 @@ void execute(char **input){
 }
 
 int redirected_execute(int *type, char **input){
+  //initialise fp, set to stdin for |, or filename given < or >
+  //
+  //
+  //FILE fp;
   if(*type == 2){
 	//pipe stdout -> stdin
 	char **second_command = &input[(*++type) + 1];
 	input[*type] = '\0';
 	printf("%s\n", *second_command);
+	//fp = stdin;
   }else{
-	char *file = (char *) malloc(sizeof(char) * 64);
+	//need to check type for reading from or writing to file
+	//
 	//set file to second bit of input, using location of type array
+	char *file = (char *) malloc(sizeof(char) * 64);
 	file = input[(*++type) + 1];
 	//truncate anything past redirect from input
 	input[*type] = '\0';
 	return out_to_file(input, file);
+	//fp = fopen(filename, "w");
   }
+  free(type);
+  //execute to file
+  //return out_to_file(input, fp);
   return 0;
 }
 
+//change argument from char *file to FILE *fp
 int out_to_file(char **command, char *file){
-  /*
-  FILE *fp = fopen(file, "w");
-  if(fp == NULL){
-	fprintf(stderr, "ERROR: file not found %s", file);
-	return -1;
-  }
-  int fd = fileno(fp);
-  */
+  //int fd = fileno(fp);
+
   pid_t pid = fork();
   int out_pipe[2];
   //int status;
@@ -180,8 +186,6 @@ int out_to_file(char **command, char *file){
 	while(wait(&status) != pid);
 		*/
   }
-
-
   return 0;
 }
 
@@ -250,24 +254,16 @@ int main(int argc, char **argv){
 	run_script(argv[1]);
 	//otherwise prompt user
   }else{
-	//char *exit_tokens[2] = {"exit", "q"}
 	while(1){
 		printf("MYSHELL > ");
 		fgets(args, 1024, stdin);
 		printf("\n");
 		parse(args, args_parsed);
 
-		//iterate through exit terms, return if input matches
-		/*
-		while(*exit_tokens != NULL){
-		  if(strcmp(args_parsed[0], *exit_tokens))
-			  return 0;
-		  exit_tokens++;
-		}
-		*/
 		if(strcmp(args_parsed[0], "exit") == 0 ){
 		  return 0;
 		}
+
 		dispatch(args_parsed);
 	}
   }
