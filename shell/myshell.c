@@ -142,7 +142,7 @@ int redirected_execute(int *type, char **input){
 	input[location] = '\0';
 
 	if(kind == 0){
-	  //open file for writing stdout to 
+	  //open file for writing stdout to
 	  fp = fopen(file, "w");
 	  if(fp == NULL){
 		fprintf(stderr, "ERROR: %s: File not found\n", file);
@@ -259,58 +259,11 @@ int in_to_command(char **command, FILE *fp){
 
 //takes two commands, redirects stdout of first to stdin of second
 int unix_pipeline(char **first, char **second){
-  out_to_file(first, stdin);
-  execute(second, 0);
-  //in_to_command(second, stdin);
-
-  /*
-  //establish and check pipe
-  int pipefd[2];
-  pid_t cpid;
-
-  if(pipe(pipefd) == -1){
-	fprintf(stderr, "ERROR: %s: Pipe failure\n", *first);
-	return -1;
-  }
-
-  cpid = fork();
-
-  if(cpid < 0){
-	fprintf(stderr, "ERROR: %s: Failed to fork\n", *first);
-	exit(1);
-  }else if(cpid == 0){
-	//close read end
-	close(pipefd[0]);
-	//redirect stdout to pipe
-	dup2(pipefd[1], STDOUT_FILENO);
-
-	//execute command
-	if(execvp(*first, first) <= 0){
-	  //attempt to execute command from $PATH
-	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *first);
-	  exit(1);
-	}
-  }else{
-	char buf[1];
-	//close write end
-	close(pipefd[1]);
-	//read pipe char by char to buffer
-	while(read(pipefd[0], buf, 1) > 0){
-	  //print buffer char to file
-	  fprintf(stdin, "%c", *buf);
-	}
-	close(pipefd[0]);
-	//wait for child
-	wait(NULL);
-  }
-
-  //fork again for second process to read stdin
-  cpid = fork();
-
-  if
-	*/
-
-
+  FILE *tempfp = tmpfile();
+  out_to_file(first, tempfp);
+  rewind(tempfp);
+  in_to_command(second, tempfp);
+  fclose(tempfp);
 
   return 0;
 }
