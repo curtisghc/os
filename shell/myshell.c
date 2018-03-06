@@ -8,11 +8,18 @@
 #include "utilities.h"
 
 void parse(char *args, char **args_parsed);
+//check flags
 int *check_redirect(char **input);
 int check_background(char **input);
-void execute(char **input);
+
+void execute(char **input, int background);
+
+//pipe operations
 int redirected_execute(int *type, char **input);
-int out_to_file(char **command, char *file);
+int out_to_file(char **command, FILE *fp);
+int in_to_command(char **command, FILE *fp);
+int unix_pipeline(char **first, char **second);
+
 int run_builtin(char **input);
 int run_script(char *file);
 int dispatch(char **input);
@@ -57,10 +64,26 @@ int *check_redirect(char **input){
   //initialize type
   *type = -1;
 
+  int location = 0;
+  //for earch word of input
+  while(**input != '\0'){
+	//for each redirect token
+	for(int i = 0; i < 3; i++){
+	  if(strcmp(*input, tokens[i]) == 0){
+		type[0] = i;
+		type[1] = location;
+		return type;
+	  }
+	}
+	input++;
+	location++;
+  }
+  return type;
+
+  /*
   //for each token
   for(int i = 0; i < (signed int) (sizeof(tokens)/sizeof(*tokens)); i++){
-	int location = 0;
-	//for each element of the input
+	//for each word of input
 	while(**input != '\0'){
 	  if(strcmp(*input, tokens[i]) == 0){
 		type[0] = i;
@@ -72,15 +95,15 @@ int *check_redirect(char **input){
 	}
   }
   return type;
+  */
 }
 
-void execute(char **input){
+void execute(char **input, int background){
   pid_t pid = fork();
-  int status;
-  int background = check_background(input);
+  //int background = check_background(input);
 
   if(pid < 0){
-	fprintf(stderr, "ERROR: Failed to fork\n");
+	fprintf(stderr, "ERROR: %s: Failed to fork\n", *input);
 	exit(1);
   }else if(pid == 0){
 	//child process execution of command
@@ -88,106 +111,210 @@ void execute(char **input){
 	  //first, check and run if input matches builtin function
 	}else if(execvp(*input, input) <= 0){
 	  //attempt to execute command from $PATH
-	  fprintf(stderr, "ERROR: Failed to execute\n");
+	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *input);
 	  exit(1);
 	}
   }else if(!background){
 	//wait if child should not be in background
-	while(wait(&status) != pid);
+	wait(NULL);
   }
 }
 
 int redirected_execute(int *type, char **input){
-  //initialise fp, set to stdin for |, or filename given < or >
-  //
-  //
-  //FILE fp;
-  if(*type == 2){
+  //type contains to both the kind and location of redirect
+  int kind = *type;
+  int location = *++type;
+  //free(type);
+
+  //stdout -> stdin
+  if(kind == 2){
 	//pipe stdout -> stdin
-	char **second_command = &input[(*++type) + 1];
-	input[*type] = '\0';
-	printf("%s\n", *second_command);
-	//fp = stdin;
+	char **second_command = &input[location + 1];
+	input[location] = '\0';
+	//input points to first command
+	//second command points to first command
+	return unix_pipeline(input, second_command);
   }else{
-	//need to check type for reading from or writing to file
-	//
-	//set file to second bit of input, using location of type array
-	char *file = (char *) malloc(sizeof(char) * 64);
-	file = input[(*++type) + 1];
-	//truncate anything past redirect from input
-	input[*type] = '\0';
-	return out_to_file(input, file);
-	//fp = fopen(filename, "w");
+	FILE *fp = (FILE *) malloc(sizeof(char) * 64);
+	//file name is after redirect token
+	char *file = input[location + 1];
+	//input becomes command before redirect token
+	input[location] = '\0';
+
+	if(kind == 0){
+	  //open file for writing stdout to 
+	  fp = fopen(file, "w");
+	  if(fp == NULL){
+		fprintf(stderr, "ERROR: %s: File not found\n", file);
+		return -1;
+	  }
+	  out_to_file(input, fp);
+	}else{
+	  //open file for reading to stdin
+	  fp = fopen(file, "r");
+	  if(fp == NULL){
+		fprintf(stderr, "ERROR: %s: File not found\n", file);
+		return -1;
+	  }
+	  in_to_command(input, fp);
+	}
+	fclose(fp);
   }
-  free(type);
-  //execute to file
-  //return out_to_file(input, fp);
-  return 0;
+  return -1;
 }
 
-//change argument from char *file to FILE *fp
-int out_to_file(char **command, char *file){
-  //int fd = fileno(fp);
+//execute command and redirect output to file pointed to by fp
+int out_to_file(char **command, FILE *fp){
+  //establish pipe
+  int pipefd[2];
+  pid_t cpid;
 
-  pid_t pid = fork();
-  int out_pipe[2];
-  //int status;
-  if(pipe(out_pipe) == -1){
-	fprintf(stderr, "ERROR: pipe failed to initialize");
+  //check pipe
+  if(pipe(pipefd) == -1){
+	fprintf(stderr, "ERROR: %s: Pipe failure\n", *command);
 	return -1;
   }
 
-  if(pid < 0){
-	fprintf(stderr, "ERROR: Failed to fork\n");
+  //forking, same as execute
+  cpid = fork();
+  if(cpid < 0){
+	fprintf(stderr, "ERROR: %s: Failed to fork\n", *command);
 	exit(1);
-  }else if(pid == 0){
-	close(out_pipe[0]);
-	//redirect to stdout
-	dup2(out_pipe[1], 1);
-	//child process execution of command
-	if(run_builtin(command)){
-	}else{
-	  execvp(*command, command);
-	}
-  }else{
+  }else if(cpid == 0){
+	//close read end
+	close(pipefd[0]);
+	//redirect stdout to pipe
+	dup2(pipefd[1], STDOUT_FILENO);
 
-	pid_t retpid;
-	int  child_stat;
-	while ((retpid = waitpid(pid, &child_stat, 0)) != pid && retpid != (pid_t) -1);
-
-	close(out_pipe[1]);
-
-	char buf[100];
-	ssize_t bytesread;
-
-	int fd = open(file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-	if (fd == -1) {
-	  fprintf(stderr, "Opening of %s failed!\n", file);
+	//execute command
+	if(execvp(*command, command) <= 0){
+	  //attempt to execute command from $PATH
+	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
 	  exit(1);
 	}
+	close(pipefd[0]);
+  }else{
+	char buf[1];
 
-	/* This part writes to beejoutput.txt */
-	while ((bytesread = read(out_pipe[0], buf, 100)) > 0) {
-	  write(fd, buf, bytesread);
+	//close write end
+	close(pipefd[1]);
+	//read pipe char by char to buffer
+	while(read(pipefd[0], buf, 1) > 0){
+	  //print buffer char to file
+	  fprintf(fp, "%c", *buf);
 	}
-	lseek(fd, (off_t) 0, SEEK_SET);
-	dup2(fd, 0);
-	//execlp("wc", "wc", "-l", NULL);
-
-
-
-		/*
-	close(out_pipe[1]);
-	char read_buffer[1];
-	while(read(out_pipe[0], read_buffer, 1) > 0){
-	  write(fd, read_buffer, 1);
-	}
-	close(out_pipe[0]);
-	while(wait(&status) != pid);
-		*/
+	//fclose(fp);
+	close(pipefd[0]);
+	//wait for child
+	wait(NULL);
   }
   return 0;
 }
+
+int in_to_command(char **command, FILE *fp){
+  //establish pipe and buffer
+  int pipefd[2];
+  pid_t cpid;
+
+  //check pipe
+  if(pipe(pipefd) == -1){
+	fprintf(stderr, "ERROR: %s: Pipe failure\n", *command);
+	return -1;
+  }
+
+  //forking, same as in execute
+  cpid = fork();
+  if(cpid < 0){
+	fprintf(stderr, "ERROR: %s: Failed to fork\n", *command);
+	exit(1);
+  }else if(cpid == 0){
+	//close write end, child reads
+	close(pipefd[1]);
+
+	//redirect pipe to stdin
+	dup2(pipefd[0], STDIN_FILENO);
+
+	//execute command
+	if(execvp(*command, command) <= 0){
+	  //attempt to execute command from $PATH
+	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
+	  exit(1);
+	}
+	close(pipefd[1]);
+  }else{
+	char buf[1];
+	//close read end
+	close(pipefd[0]);
+	//write file char by char to pipe
+	while(EOF != (*buf = fgetc(fp))){
+	  write(pipefd[1], buf, 1);
+	}
+	//fclose(fp);
+	close(pipefd[1]);
+	//wait for child to execute
+	wait(NULL);
+  }
+  return 0;
+}
+
+//takes two commands, redirects stdout of first to stdin of second
+int unix_pipeline(char **first, char **second){
+  out_to_file(first, stdin);
+  execute(second, 0);
+  //in_to_command(second, stdin);
+
+  /*
+  //establish and check pipe
+  int pipefd[2];
+  pid_t cpid;
+
+  if(pipe(pipefd) == -1){
+	fprintf(stderr, "ERROR: %s: Pipe failure\n", *first);
+	return -1;
+  }
+
+  cpid = fork();
+
+  if(cpid < 0){
+	fprintf(stderr, "ERROR: %s: Failed to fork\n", *first);
+	exit(1);
+  }else if(cpid == 0){
+	//close read end
+	close(pipefd[0]);
+	//redirect stdout to pipe
+	dup2(pipefd[1], STDOUT_FILENO);
+
+	//execute command
+	if(execvp(*first, first) <= 0){
+	  //attempt to execute command from $PATH
+	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *first);
+	  exit(1);
+	}
+  }else{
+	char buf[1];
+	//close write end
+	close(pipefd[1]);
+	//read pipe char by char to buffer
+	while(read(pipefd[0], buf, 1) > 0){
+	  //print buffer char to file
+	  fprintf(stdin, "%c", *buf);
+	}
+	close(pipefd[0]);
+	//wait for child
+	wait(NULL);
+  }
+
+  //fork again for second process to read stdin
+  cpid = fork();
+
+  if
+	*/
+
+
+
+  return 0;
+}
+
 
 //compare input to list of builtin functions, and execute if matched
 //return 1 if match found
@@ -214,18 +341,19 @@ int run_builtin(char **input){
   return 1;
 }
 
+//
 int run_script(char *file){
   char args[1024];
   char *args_parsed[64];
   FILE *fp = fopen(file, "r");
   if(fp != NULL){
 	return 1;
-	fprintf(stderr, "ERROR: File not found %s\n", file);
+	fprintf(stderr, "ERROR: %s: No such file\n", file);
   }else{
 	//parse and execute script file line by line
 	while(fgets(args, 1024, fp) != NULL){
 	parse(args, args_parsed);
-	execute(args_parsed);
+	dispatch(args_parsed);
 	}
   }
   return 0;
@@ -235,13 +363,13 @@ int dispatch(char **input){
   int *redirect = check_redirect(input);
   if(*redirect != -1){
 	//check for output redirection and execute there if required
-	if(redirected_execute(redirect, input) == -1){
-	  fprintf(stderr, "ERROR: Failed to redirect\n");
+	if(redirected_execute(redirect, input) != 0){
+	  fprintf(stderr, "ERROR: %s: Failed to redirect\n", *input);
 	  return -1;
 	}
   }else{
 	//otherwise execute normally
-	execute(input);
+	execute(input, check_background(input));
   }
   return 0;
 }
@@ -249,7 +377,7 @@ int dispatch(char **input){
 int main(int argc, char **argv){
   char args[1024];
   char *args_parsed[64];
-  //if shell passed with argument
+  //if shell passed with argument script file
   if(argc >= 2){
 	run_script(argv[1]);
 	//otherwise prompt user
