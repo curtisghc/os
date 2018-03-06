@@ -69,6 +69,7 @@ int *check_redirect(char **input){
   while(**input != '\0'){
 	//for each redirect token
 	for(int i = 0; i < 3; i++){
+	  //return location and type if token matches element of input
 	  if(strcmp(*input, tokens[i]) == 0){
 		type[0] = i;
 		type[1] = location;
@@ -78,42 +79,26 @@ int *check_redirect(char **input){
 	input++;
 	location++;
   }
+  //otherwise return -1
   return type;
-
-  /*
-  //for each token
-  for(int i = 0; i < (signed int) (sizeof(tokens)/sizeof(*tokens)); i++){
-	//for each word of input
-	while(**input != '\0'){
-	  if(strcmp(*input, tokens[i]) == 0){
-		type[0] = i;
-		type[1] = location;
-		return type;
-	  }
-	  input++;
-	  location++;
-	}
-  }
-  return type;
-  */
 }
 
 void execute(char **input, int background){
-  pid_t pid = fork();
+  pid_t cpid = fork();
   //int background = check_background(input);
 
-  if(pid < 0){
+  if(cpid < 0){
 	fprintf(stderr, "ERROR: %s: Failed to fork\n", *input);
 	exit(1);
-  }else if(pid == 0){
+  }else if(cpid == 0){
 	//child process execution of command
 	if(run_builtin(input)){
 	  //first, check and run if input matches builtin function
 	}else if(execvp(*input, input) <= 0){
 	  //attempt to execute command from $PATH
 	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *input);
-	  exit(1);
 	}
+	exit(1);
   }else if(!background){
 	//wait if child should not be in background
 	wait(NULL);
@@ -124,6 +109,8 @@ int redirected_execute(int *type, char **input){
   //type contains to both the kind and location of redirect
   int kind = *type;
   int location = *++type;
+
+  //why doesn't this work?
   //free(type);
 
   //stdout -> stdin
@@ -132,10 +119,11 @@ int redirected_execute(int *type, char **input){
 	char **second_command = &input[location + 1];
 	input[location] = '\0';
 	//input points to first command
-	//second command points to first command
+	//second_command points to second command
 	return unix_pipeline(input, second_command);
   }else{
-	FILE *fp = (FILE *) malloc(sizeof(char) * 64);
+	FILE *fp;
+
 	//file name is after redirect token
 	char *file = input[location + 1];
 	//input becomes command before redirect token
@@ -187,12 +175,12 @@ int out_to_file(char **command, FILE *fp){
 	dup2(pipefd[1], STDOUT_FILENO);
 
 	//execute command
-	if(execvp(*command, command) <= 0){
-	  //attempt to execute command from $PATH
+	if(run_builtin(command)){
+	}else if(execvp(*command, command) <= 0){
 	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
-	  exit(1);
 	}
 	close(pipefd[0]);
+	exit(1);
   }else{
 	char buf[1];
 
@@ -203,7 +191,7 @@ int out_to_file(char **command, FILE *fp){
 	  //print buffer char to file
 	  fprintf(fp, "%c", *buf);
 	}
-	//fclose(fp);
+	//fclose(fp); -- moved to redirected_execute
 	close(pipefd[0]);
 	//wait for child
 	wait(NULL);
@@ -230,17 +218,17 @@ int in_to_command(char **command, FILE *fp){
   }else if(cpid == 0){
 	//close write end, child reads
 	close(pipefd[1]);
-
 	//redirect pipe to stdin
 	dup2(pipefd[0], STDIN_FILENO);
 
 	//execute command
-	if(execvp(*command, command) <= 0){
-	  //attempt to execute command from $PATH
+	if(run_builtin(command)){
+	}else if(execvp(*command, command) <= 0){
 	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
-	  exit(1);
 	}
-	close(pipefd[1]);
+	close(pipefd[0]);
+	exit(1);
+
   }else{
 	char buf[1];
 	//close read end
@@ -249,7 +237,7 @@ int in_to_command(char **command, FILE *fp){
 	while(EOF != (*buf = fgetc(fp))){
 	  write(pipefd[1], buf, 1);
 	}
-	//fclose(fp);
+	//fclose(fp); -- moved to redirected_execute
 	close(pipefd[1]);
 	//wait for child to execute
 	wait(NULL);
@@ -259,9 +247,13 @@ int in_to_command(char **command, FILE *fp){
 
 //takes two commands, redirects stdout of first to stdin of second
 int unix_pipeline(char **first, char **second){
-  FILE *tempfp = tmpfile();
+  //FILE *tempfp = tmpfile();
+  FILE *tempfp;
+  tempfp = fopen("temp", "w");
   out_to_file(first, tempfp);
-  rewind(tempfp);
+  fclose(tempfp);
+  //rewind(tempfp);
+  tempfp = fopen("temp", "r");
   in_to_command(second, tempfp);
   fclose(tempfp);
 
@@ -316,10 +308,13 @@ int dispatch(char **input){
   int *redirect = check_redirect(input);
   if(*redirect != -1){
 	//check for output redirection and execute there if required
+	redirected_execute(redirect, input);
+	/*
 	if(redirected_execute(redirect, input) != 0){
 	  fprintf(stderr, "ERROR: %s: Failed to redirect\n", *input);
 	  return -1;
 	}
+	*/
   }else{
 	//otherwise execute normally
 	execute(input, check_background(input));
@@ -350,8 +345,5 @@ int main(int argc, char **argv){
   }
 }
 
-  //fix issue with exit- for each command entered, exit must be entered
-  //an extra time to actually exit
-  //something to do with mock prompts, i think
 
-//still need to add io redirection
+//need to work on pipeline
