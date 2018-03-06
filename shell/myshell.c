@@ -291,17 +291,18 @@ int run_script(char *file){
   char args[1024];
   char *args_parsed[64];
   FILE *fp = fopen(file, "r");
-  if(fp != NULL){
-	return 1;
+
+  if(fp == NULL){
 	fprintf(stderr, "ERROR: %s: No such file\n", file);
+	return -1;
   }else{
 	//parse and execute script file line by line
 	while(fgets(args, 1024, fp) != NULL){
-	parse(args, args_parsed);
-	dispatch(args_parsed);
+	  parse(args, args_parsed);
+	  dispatch(args_parsed);
 	}
+	return 0;
   }
-  return 0;
 }
 
 int dispatch(char **input){
