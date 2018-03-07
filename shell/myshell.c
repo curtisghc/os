@@ -347,4 +347,5 @@ int main(int argc, char **argv){
 }
 
 
+//echo doesn't work with output redirect
 //need to work on pipeline
