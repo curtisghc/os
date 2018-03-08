@@ -1,0 +1,32 @@
+* Name
+   myshell
+* Synopsis
+   myshell [file]
+* Description
+   Myshell is a simple shell implementation designed to facilitate the execution of programs. It can either operate as an interface to read input, execute, print outputs, and loop, or as a scripting program to read commands from a file. Invoking myshell with no arguments executes a shell interface, while a single argument file will run that file as a script and exit.
+   Myshell has several builtin functions, but will search the user's $PATH to find binaries to run. The path will be where any installed program might be, so Myshell will be able to run any installed program.
+   
+* Builtins
+** cd
+   Navigate to destination directory
+   Print working directory if no arguments given
+** pwd
+   Print the current working directory
+** dir
+   Print all files and directories within the current working directory
+** cls
+   Clear the screen, print prompt at top of screen
+** environ
+   List all environment variables such as $USR, $PATH, $HIST_FILE
+** echo
+   Print each argument separated by whitespace
+** help
+   Print this help dialogue
+** pause
+   Suspend execution loop until reurn entered
+* IO Redirection
+  Myshell also includes IO redirection functionality. 
+
+  1. [command] > [file] - stdout, including all command output, will be directed to a file.
+  2. [command] < [file] - command will draw stdin from file
+  3. [command 1] | [command 2] - command 1 will output to output 2's stdin, so commands can be strung together

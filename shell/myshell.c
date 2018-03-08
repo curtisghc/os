@@ -20,6 +20,7 @@ int out_to_file(char **command, FILE *fp);
 int in_to_command(char **command, FILE *fp);
 
 int unix_pipeline(char **first, char **second);
+
 //helping functions for pipeline;
 void append_file(char **list, char *token, char *file);
 void free_elements(char **arr);
@@ -387,22 +388,24 @@ int dispatch(char **input){
 int main(int argc, char **argv){
   char args[1024];
   char *args_parsed[64];
+  char pwd[1024];
   //if shell passed with argument script file
   if(argc >= 2){
 	run_script(argv[1]);
 	//otherwise prompt user
   }else{
 	while(1){
-		printf("MYSHELL > ");
-		fgets(args, 1024, stdin);
-		printf("\n");
-		parse(args, args_parsed);
+	  getcwd(pwd, 1024);
+	  printf("%s > ", pwd);
+	  fgets(args, 1024, stdin);
+	  //printf("\n");
+	  parse(args, args_parsed);
 
-		if(strcmp(args_parsed[0], "exit") == 0 ){
-		  return 0;
-		}
+	  if(strcmp(args_parsed[0], "exit") == 0 ){
+		return 0;
+	  }
 
-		dispatch(args_parsed);
+	  dispatch(args_parsed);
 	}
   }
 }
