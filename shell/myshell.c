@@ -18,8 +18,9 @@ void execute(char **input, int background);
 int redirected_execute(int *type, char **input);
 int out_to_file(char **command, FILE *fp);
 int in_to_command(char **command, FILE *fp);
-int unix_pipeline(char **first, char **second);
 
+int unix_pipeline(char **first, char **second);
+//helping functions for pipeline;
 void append_file(char **list, char *token, char *file);
 void free_elements(char **arr);
 
@@ -300,10 +301,10 @@ int unix_pipeline(char **first, char **second){
 
   append_file(first, ">", "temp");
   append_file(second, "<", "temp");
-  remove("temp");
 
   dispatch(first);
   dispatch(second);
+  remove("temp");
 
   free_elements(second);
   free(second);
@@ -406,5 +407,4 @@ int main(int argc, char **argv){
   }
 }
 
-
-//need to work on pipeline
+//would like to make pipeline less ugly
