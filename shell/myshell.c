@@ -21,6 +21,7 @@ int in_to_command(char **command, FILE *fp);
 int unix_pipeline(char **first, char **second);
 
 void append_file(char **list, char *token, char *file);
+void free_elements(char **arr);
 
 int run_builtin(char **input);
 int run_script(char *file);
@@ -43,15 +44,15 @@ void parse(char *args, char **args_parsed){
 	}
   }
   //end of 2d array
-  //args_parsed--;
-  *args_parsed = '\0';//NULL;//'\0';
+  args_parsed--;
+  *args_parsed = NULL;//'\0';
 }
 
 //returns 1 if there is a '&' char in the input, indicating the child
 //process should not be waited for by the parent.
 int check_background(char **input){
   //set background boolean to true if input has '&'
-  while(**input != '\0' && **input != '\n'){
+  while(*input != NULL && **input != '\n'){
 	if(**input == '&'){
 	  return 1;
 	}
@@ -69,7 +70,7 @@ int *check_redirect(char **input){
 
   int location = 0;
   //for earch word of input
-  while(**input != '\0'){
+  while(*input != NULL){
 	//for each redirect token
 	for(int i = 0; i < 3; i++){
 	  //return location and type if token matches element of input
@@ -114,7 +115,8 @@ int redirected_execute(int *type, char **input){
   int location = *++type;
 
   //why doesn't this work?
-  //free(type);
+  type--;
+  free(type);
 
   //stdout -> stdin
   if(kind == 2){
@@ -131,7 +133,7 @@ int redirected_execute(int *type, char **input){
 	int counter = location;
 
 	//copy elements of input to second command
-	while(*input[counter + 1] != '\0'){
+	while(input[counter + 1] != NULL){
 	  *second_command = (char *) malloc(sizeof(char) * 64);
 
 	  strcpy(*second_command, input[counter + 1]);
@@ -141,14 +143,14 @@ int redirected_execute(int *type, char **input){
 	}
 	//second_command++;
 	*second_command = (char *)malloc(sizeof(char) * 2);
-	*second_command = "\0";
+	*second_command = NULL;
 	while(counter > location){
 	  second_command--;
 	  counter--;
 	}
 
 	//second_command = &input[location + 1];
-	input[location] = "\0";
+	input[location] = NULL;
 	//input points to first command
 	//second_command points to second command
 	return unix_pipeline(input, second_command);
@@ -158,7 +160,7 @@ int redirected_execute(int *type, char **input){
 	//file name is after redirect token
 	char *file = input[location + 1];
 	//input becomes command before redirect token
-	input[location] = "\0";
+	input[location] = NULL;
 
 	if(kind == 0){
 	  //open file for writing stdout to
@@ -303,21 +305,28 @@ int unix_pipeline(char **first, char **second){
   dispatch(first);
   dispatch(second);
 
+  free_elements(second);
+  free(second);
 
   return 0;
 }
 
 void append_file(char **list, char *token, char *file){
-  while(**list != '\0'){
+  while(*list != NULL){
 	list++;
   }
   *list = token;
   list++;
   *list = file;
   list++;
-  *list = "\0";
+  *list = NULL;
 }
 
+void free_elements(char **arr){
+  while(*arr != NULL){
+	free(*(arr++));
+  }
+}
 
 //compare input to list of builtin functions, and execute if matched
 //return 1 if match found
@@ -344,7 +353,6 @@ int run_builtin(char **input){
   return 1;
 }
 
-//
 int run_script(char *file){
   char args[1024];
   char *args_parsed[64];
@@ -368,12 +376,6 @@ int dispatch(char **input){
   if(*redirect != -1){
 	//check for output redirection and execute there if required
 	redirected_execute(redirect, input);
-	/*
-	if(redirected_execute(redirect, input) != 0){
-	  fprintf(stderr, "ERROR: %s: Failed to redirect\n", *input);
-	  return -1;
-	}
-	*/
   }else{
 	//otherwise execute normally
 	execute(input, check_background(input));
@@ -405,5 +407,4 @@ int main(int argc, char **argv){
 }
 
 
-//echo doesn't work with output redirect
 //need to work on pipeline

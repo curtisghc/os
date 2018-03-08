@@ -16,7 +16,7 @@ void _pause();
 
 //use chdir to switch directory to argument
 void cd(char **input){
-  if(input[1][0] == '\0'){
+  if(input[1] == NULL){
 	pwd();
   }else if(chdir(input[1]) == -1){
 	fprintf(stderr, "ERROR: Failed to change directory\n");
@@ -59,7 +59,7 @@ void _environ(){
 //iterate through input and print each separated by one space
 void echo(char **input){
   input++;
-  while(**input != '\0'){
+  while(*input != NULL){
 	printf("%s ", *input);
 	input++;
   }
