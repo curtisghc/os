@@ -20,6 +20,8 @@ int out_to_file(char **command, FILE *fp);
 int in_to_command(char **command, FILE *fp);
 int unix_pipeline(char **first, char **second);
 
+void append_file(char **list, char *token, char *file);
+
 int run_builtin(char **input);
 int run_script(char *file);
 int dispatch(char **input);
@@ -41,7 +43,8 @@ void parse(char *args, char **args_parsed){
 	}
   }
   //end of 2d array
-  *args_parsed = '\0';
+  //args_parsed--;
+  *args_parsed = '\0';//NULL;//'\0';
 }
 
 //returns 1 if there is a '&' char in the input, indicating the child
@@ -115,9 +118,37 @@ int redirected_execute(int *type, char **input){
 
   //stdout -> stdin
   if(kind == 2){
-	//pipe stdout -> stdin
+	/* ideal solution
 	char **second_command = &input[location + 1];
-	input[location] = '\0';
+	*input[location] = '\0';
+	return unix_pipeline(input, second_command);
+	*/
+
+	//mallocation just to get it to work, not ideal
+	//terrible solution only allocate for appending
+	char **second_command = (char **)malloc(sizeof(char *) * 64);
+
+	int counter = location;
+
+	//copy elements of input to second command
+	while(*input[counter + 1] != '\0'){
+	  *second_command = (char *) malloc(sizeof(char) * 64);
+
+	  strcpy(*second_command, input[counter + 1]);
+	  //*second_command = input[location + 1];
+	  counter++;
+	  second_command++;
+	}
+	//second_command++;
+	*second_command = (char *)malloc(sizeof(char) * 2);
+	*second_command = "\0";
+	while(counter > location){
+	  second_command--;
+	  counter--;
+	}
+
+	//second_command = &input[location + 1];
+	input[location] = "\0";
 	//input points to first command
 	//second_command points to second command
 	return unix_pipeline(input, second_command);
@@ -127,7 +158,7 @@ int redirected_execute(int *type, char **input){
 	//file name is after redirect token
 	char *file = input[location + 1];
 	//input becomes command before redirect token
-	input[location] = '\0';
+	input[location] = "\0";
 
 	if(kind == 0){
 	  //open file for writing stdout to
@@ -148,7 +179,7 @@ int redirected_execute(int *type, char **input){
 	}
 	fclose(fp);
   }
-  return -1;
+  return 0;
 }
 
 //execute command and redirect output to file pointed to by fp
@@ -247,17 +278,44 @@ int in_to_command(char **command, FILE *fp){
 
 //takes two commands, redirects stdout of first to stdin of second
 int unix_pipeline(char **first, char **second){
-  //FILE *tempfp = tmpfile();
-  FILE *tempfp;
-  tempfp = fopen("temp", "w");
-  out_to_file(first, tempfp);
-  fclose(tempfp);
-  //rewind(tempfp);
-  tempfp = fopen("temp", "r");
-  in_to_command(second, tempfp);
-  fclose(tempfp);
+  /* ideal solution
+	 FILE *tempfp = tmpfile();
+	 out_to_file(first, tempfp);
+	 in_to_command(second, tempfp);
+	 fclose(tempfp);
+   */
+  /* better than nothing
+	 FILE *tempfp;
+	 tempfp = fopen("temp", "w");
+	 out_to_file(first, tempfp);
+	 fclose(tempfp);
+	 //rewind(tempfp);
+	 tempfp = fopen("temp", "r");
+	 in_to_command(second, tempfp);
+	 fclose(tempfp);
+  */
+  //worst solution requires reallocation in redirected_execute()
+
+  append_file(first, ">", "temp");
+  append_file(second, "<", "temp");
+  remove("temp");
+
+  dispatch(first);
+  dispatch(second);
+
 
   return 0;
+}
+
+void append_file(char **list, char *token, char *file){
+  while(**list != '\0'){
+	list++;
+  }
+  *list = token;
+  list++;
+  *list = file;
+  list++;
+  *list = "\0";
 }
 
 
