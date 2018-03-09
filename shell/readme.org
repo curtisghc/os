@@ -4,12 +4,12 @@
    myshell [file]
 * Description
    Myshell is a simple shell implementation designed to facilitate the execution of programs. It can either operate as an interface to read input, execute, print outputs, and loop, or as a scripting program to read commands from a file. Invoking myshell with no arguments executes a shell interface, while a single argument file will run that file as a script and exit.
+
    Myshell has several builtin functions, but will search the user's $PATH to find binaries to run. The path will be where any installed program might be, so Myshell will be able to run any installed program.
-   
 * Builtins
 ** cd
    Navigate to destination directory
-   Print working directory if no arguments given
+   Print working directory if no arguments are given
 ** pwd
    Print the current working directory
 ** dir
@@ -21,12 +21,16 @@
 ** echo
    Print each argument separated by whitespace
 ** help
-   Print this help dialogue
+   Print this help dialogue into the "less" command for reading
 ** pause
    Suspend execution loop until reurn entered
 * IO Redirection
-  Myshell also includes IO redirection functionality. 
+  Myshell also includes IO redirection functionality. In general, commands will output to stdout, and draw input from stdin. Using a pipe, that output can be redirected from stdout to a file on the disk, or similarly, a command can draw its input from a file on the disk. If used simultaneously, one commands output can be used as another's input, allowing commands to be strung together.
 
-  1. [command] > [file] - stdout, including all command output, will be directed to a file.
-  2. [command] < [file] - command will draw stdin from file
-  3. [command 1] | [command 2] - command 1 will output to output 2's stdin, so commands can be strung together
+  [command] > [file] - command's output, will be directed to a file.
+  [command] < [file] - command will draw input from file
+  [command 1] | [command 2] - command 1 will output to command 2's input
+* Background Execution
+  In general, myshell will wait for the execution of a command before continuing, so any processes that wait for input, or execute outside of the terminal will lock up the shell. To prevent this, commands can be executed in the background, and the shell's loop will continue.
+
+  [command] & - execute process in background

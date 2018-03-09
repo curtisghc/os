@@ -1,3 +1,16 @@
+/*
+ * myshel.c - designed to be a simple unix shell
+ *
+ * Take commands from a REPL, parse commands, and dispatch for execution.
+ * If a file is passed at time of shell execution, it will run as a script
+ *
+ * Execution will be modified based off of tokens detected in input,
+ * such as for IO redirection, or background execution.
+ *
+ * For execution, builtin functions are provided and checked, but if none
+ * match, execvp is used, which searches for binaries from $PATH
+ */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -5,6 +18,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <fcntl.h>
+//builtin functionality
 #include "utilities.h"
 
 void parse(char *args, char **args_parsed);
@@ -54,8 +68,9 @@ void parse(char *args, char **args_parsed){
 //process should not be waited for by the parent.
 int check_background(char **input){
   //set background boolean to true if input has '&'
-  while(*input != NULL && **input != '\n'){
+  while(*input != NULL){ //&& **input != '\n'){
 	if(**input == '&'){
+	  *input = NULL;
 	  return 1;
 	}
 	input++;
@@ -89,12 +104,13 @@ int *check_redirect(char **input){
   return type;
 }
 
+//takes input 2d array, and 1 if it should be a background process
 void execute(char **input, int background){
   pid_t cpid = fork();
   //int background = check_background(input);
 
   if(cpid < 0){
-	fprintf(stderr, "ERROR: %s: Failed to fork\n", *input);
+	fprintf(stderr, "%s: Failed to fork\n", *input);
 	exit(1);
   }else if(cpid == 0){
 	//child process execution of command
@@ -102,7 +118,7 @@ void execute(char **input, int background){
 	  //first, check and run if input matches builtin function
 	}else if(execvp(*input, input) <= 0){
 	  //attempt to execute command from $PATH
-	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *input);
+	  fprintf(stderr, "%s: Command not found\n", *input);
 	}
 	exit(1);
   }else if(!background){
@@ -111,6 +127,9 @@ void execute(char **input, int background){
   }
 }
 
+//sets up input array for execution where output is to a file.
+//opens file and passes commands and file to specific function based on
+//type of redirection
 int redirected_execute(int *type, char **input){
   //type contains to both the kind and location of redirect
   int kind = *type;
@@ -168,7 +187,7 @@ int redirected_execute(int *type, char **input){
 	  //open file for writing stdout to
 	  fp = fopen(file, "w");
 	  if(fp == NULL){
-		fprintf(stderr, "ERROR: %s: File not found\n", file);
+		fprintf(stderr, "%s: No such file\n", file);
 		return -1;
 	  }
 	  out_to_file(input, fp);
@@ -176,7 +195,7 @@ int redirected_execute(int *type, char **input){
 	  //open file for reading to stdin
 	  fp = fopen(file, "r");
 	  if(fp == NULL){
-		fprintf(stderr, "ERROR: %s: File not found\n", file);
+		fprintf(stderr, "%s: No such file\n", file);
 		return -1;
 	  }
 	  in_to_command(input, fp);
@@ -194,14 +213,14 @@ int out_to_file(char **command, FILE *fp){
 
   //check pipe
   if(pipe(pipefd) == -1){
-	fprintf(stderr, "ERROR: %s: Pipe failure\n", *command);
+	fprintf(stderr, "%s: Pipe failure\n", *command);
 	return -1;
   }
 
   //forking, same as execute
   cpid = fork();
   if(cpid < 0){
-	fprintf(stderr, "ERROR: %s: Failed to fork\n", *command);
+	fprintf(stderr, "%s: Failed to fork\n", *command);
 	exit(1);
   }else if(cpid == 0){
 	//close read end
@@ -212,7 +231,7 @@ int out_to_file(char **command, FILE *fp){
 	//execute command
 	if(run_builtin(command)){
 	}else if(execvp(*command, command) <= 0){
-	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
+	  fprintf(stderr, "%s: Command not found\n", *command);
 	}
 	close(pipefd[0]);
 	exit(1);
@@ -234,6 +253,7 @@ int out_to_file(char **command, FILE *fp){
   return 0;
 }
 
+//execute command using file pouinted to by fp as input
 int in_to_command(char **command, FILE *fp){
   //establish pipe and buffer
   int pipefd[2];
@@ -241,14 +261,14 @@ int in_to_command(char **command, FILE *fp){
 
   //check pipe
   if(pipe(pipefd) == -1){
-	fprintf(stderr, "ERROR: %s: Pipe failure\n", *command);
+	fprintf(stderr, "%s: Pipe failure\n", *command);
 	return -1;
   }
 
   //forking, same as in execute
   cpid = fork();
   if(cpid < 0){
-	fprintf(stderr, "ERROR: %s: Failed to fork\n", *command);
+	fprintf(stderr, "%s: Failed to fork\n", *command);
 	exit(1);
   }else if(cpid == 0){
 	//close write end, child reads
@@ -259,7 +279,7 @@ int in_to_command(char **command, FILE *fp){
 	//execute command
 	if(run_builtin(command)){
 	}else if(execvp(*command, command) <= 0){
-	  fprintf(stderr, "ERROR: %s: Failed to execute\n", *command);
+	  fprintf(stderr, "%s: Command not found\n", *command);
 	}
 	close(pipefd[0]);
 	exit(1);
@@ -313,6 +333,7 @@ int unix_pipeline(char **first, char **second){
   return 0;
 }
 
+//helper for pipeline appends redirection tokens and files to input arrays
 void append_file(char **list, char *token, char *file){
   while(*list != NULL){
 	list++;
@@ -324,6 +345,7 @@ void append_file(char **list, char *token, char *file){
   *list = NULL;
 }
 
+//helper for pipeline, current solution requires reallocation
 void free_elements(char **arr){
   while(*arr != NULL){
 	free(*(arr++));
@@ -355,13 +377,14 @@ int run_builtin(char **input){
   return 1;
 }
 
+//open file and execute line by line
 int run_script(char *file){
   char args[1024];
   char *args_parsed[64];
   FILE *fp = fopen(file, "r");
 
   if(fp == NULL){
-	fprintf(stderr, "ERROR: %s: No such file\n", file);
+	fprintf(stderr, "%s: No such file\n", file);
 	return -1;
   }else{
 	//parse and execute script file line by line
@@ -369,18 +392,21 @@ int run_script(char *file){
 	  parse(args, args_parsed);
 	  dispatch(args_parsed);
 	}
+	fclose(fp);
 	return 0;
   }
 }
 
+//do checks and decide how the input array should be executed
 int dispatch(char **input){
   int *redirect = check_redirect(input);
+  int background = check_background(input);
   if(*redirect != -1){
 	//check for output redirection and execute there if required
 	redirected_execute(redirect, input);
   }else{
 	//otherwise execute normally
-	execute(input, check_background(input));
+	execute(input, background);
   }
   return 0;
 }
@@ -394,6 +420,7 @@ int main(int argc, char **argv){
 	run_script(argv[1]);
 	//otherwise prompt user
   }else{
+	//main repl loop
 	while(1){
 	  getcwd(pwd, 1024);
 	  printf("%s > ", pwd);

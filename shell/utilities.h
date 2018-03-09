@@ -19,7 +19,7 @@ void cd(char **input){
   if(input[1] == NULL){
 	pwd();
   }else if(chdir(input[1]) == -1){
-	fprintf(stderr, "ERROR: Failed to change directory\n");
+	fprintf(stderr, "%s: No such directory\n", input[1]);
   }
 }
 
@@ -67,14 +67,14 @@ void echo(char **input){
 }
 
 void help(){
-  printf("All the help you need: 8==D \n");
+  char *temp[10] = {"less", "readme"};
+  execvp(*temp, temp);
+  //printf("All the help you need: 8==D \n");
 }
 //come up with help dialogue
 
-//uses getch to wait until return is entered
+//uses getc to wait until return is entered
 void _pause(){
   while('\n' != getc(stdin));
 }
-
-
 

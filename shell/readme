@@ -1,0 +1,131 @@
+						━━━━━━━━━━━━━━━━━━━━━━━
+								 README
+
+
+						 Curtis Haig Gallagher
+						━━━━━━━━━━━━━━━━━━━━━━━
+
+
+Table of Contents
+─────────────────
+
+1 Name
+2 Synopsis
+3 Description
+4 Builtins
+.. 4.1 cd
+.. 4.2 pwd
+.. 4.3 dir
+.. 4.4 cls
+.. 4.5 environ
+.. 4.6 echo
+.. 4.7 help
+.. 4.8 pause
+5 IO Redirection
+6 Background Execution
+
+
+1 Name
+══════
+
+  myshell
+
+
+2 Synopsis
+══════════
+
+  myshell [file]
+
+
+3 Description
+═════════════
+
+  Myshell is a simple shell implementation designed to facilitate the
+  execution of programs. It can either operate as an interface to read
+  input, execute, print outputs, and loop, or as a scripting program to
+  read commands from a file. Invoking myshell with no arguments executes
+  a shell interface, while a single argument file will run that file as
+  a script and exit.
+
+  Myshell has several builtin functions, but will search the user's
+  $PATH to find binaries to run. The path will be where any installed
+  program might be, so Myshell will be able to run any installed
+  program.
+
+
+4 Builtins
+══════════
+
+4.1 cd
+──────
+
+  Navigate to destination directory Print working directory if no
+  arguments are given
+
+
+4.2 pwd
+───────
+
+  Print the current working directory
+
+
+4.3 dir
+───────
+
+  Print all files and directories within the current working directory
+
+
+4.4 cls
+───────
+
+  Clear the screen, print prompt at top of screen
+
+
+4.5 environ
+───────────
+
+  List all environment variables such as $USR, $PATH, $HIST_FILE
+
+
+4.6 echo
+────────
+
+  Print each argument separated by whitespace
+
+
+4.7 help
+────────
+
+  Print this help dialogue
+
+
+4.8 pause
+─────────
+
+  Suspend execution loop until reurn entered
+
+
+5 IO Redirection
+════════════════
+
+  Myshell also includes IO redirection functionality. In general,
+  commands will output to stdout, and draw input from stdin. Using a
+  pipe, that output can be redirected from stdout to a file on the disk,
+  or similarly, a command can draw its input from a file on the disk. If
+  used simultaneously, one commands output can be used as another's
+  input, allowing commands to be strung together.
+
+  [command] > [file] - command's output, will be directed to a file.
+  [command] < [file] - command will draw input from file [command 1] |
+  [command 2] - command 1 will output to command 2's input
+
+
+6 Background Execution
+══════════════════════
+
+  In general, myshell will wait for the execution of a command before
+  continuing, so any processes that wait for input, or execute outside
+  of the terminal will lock up the shell. To prevent this, commands can
+  be executed in the background, and the shell's loop will continue.
+
+  [command] & - execute process in background
