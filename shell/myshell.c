@@ -107,7 +107,6 @@ int *check_redirect(char **input){
 //takes input 2d array, and 1 if it should be a background process
 void execute(char **input, int background){
   pid_t cpid = fork();
-  //int background = check_background(input);
 
   if(cpid < 0){
 	fprintf(stderr, "%s: Failed to fork\n", *input);
@@ -356,9 +355,11 @@ void free_elements(char **arr){
 //return 1 if match found
 int run_builtin(char **input){
   char *command = *input;
+  /*
   if(strcmp(command, "cd") == 0)
 	cd(input);
-  else if(strcmp(command, "pwd") == 0)
+  */
+  if(strcmp(command, "pwd") == 0)
 	pwd();
   else if(strcmp(command, "cls") == 0)
 	cls();
@@ -399,14 +400,19 @@ int run_script(char *file){
 
 //do checks and decide how the input array should be executed
 int dispatch(char **input){
-  int *redirect = check_redirect(input);
-  int background = check_background(input);
-  if(*redirect != -1){
-	//check for output redirection and execute there if required
-	redirected_execute(redirect, input);
+  if(strcmp(*input, "cd") == 0){
+	//must be run by parent process
+	cd(input);
   }else{
-	//otherwise execute normally
-	execute(input, background);
+	int *redirect = check_redirect(input);
+	int background = check_background(input);
+	if(*redirect != -1){
+	  //check for output redirection and execute there if required
+	  redirected_execute(redirect, input);
+	}else{
+	  //otherwise execute normally
+	  execute(input, background);
+	}
   }
   return 0;
 }

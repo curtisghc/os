@@ -66,12 +66,21 @@ void echo(char **input){
   printf("\n");
 }
 
+//print help dialogue into less for readability
 void help(){
-  char *temp[10] = {"less", "readme"};
-  execvp(*temp, temp);
-  //printf("All the help you need: 8==D \n");
+  printf("Basic help dialogue for \"myshell\"\n");
+  printf("Navigate to \"readme\" for more help\n");
+  printf("\n");
+  printf("These shell commands are defined internally:\n");
+  printf("cd [dir] - change direcotries\n");
+  printf("pwd - print current working directory\n");
+  printf("cls - clear screen\n");
+  printf("dir - print contents of current working directory\n");
+  printf("environ - print all evnironment variables\n");
+  printf("echo [args] - print args separated by whitespace\n");
+  printf("help - print this help message\n");
+  printf("pause - stop all processes, wait for return key\n");
 }
-//come up with help dialogue
 
 //uses getc to wait until return is entered
 void _pause(){
