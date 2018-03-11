@@ -61,7 +61,7 @@ void parse(char *args, char **args_parsed){
   }
   //end of 2d array
   args_parsed--;
-  *args_parsed = NULL;//'\0';
+  *args_parsed = NULL;
 }
 
 //returns 1 if there is a '&' char in the input, indicating the child
@@ -147,7 +147,6 @@ int redirected_execute(int *type, char **input){
 	*/
 
 	//mallocation just to get it to work, not ideal
-	//terrible solution only allocate for appending
 	char **second_command = (char **)malloc(sizeof(char *) * 64);
 
 	int counter = location;
@@ -355,10 +354,6 @@ void free_elements(char **arr){
 //return 1 if match found
 int run_builtin(char **input){
   char *command = *input;
-  /*
-  if(strcmp(command, "cd") == 0)
-	cd(input);
-  */
   if(strcmp(command, "pwd") == 0)
 	pwd();
   else if(strcmp(command, "cls") == 0)
@@ -431,7 +426,6 @@ int main(int argc, char **argv){
 	  getcwd(pwd, 1024);
 	  printf("%s > ", pwd);
 	  fgets(args, 1024, stdin);
-	  //printf("\n");
 	  parse(args, args_parsed);
 
 	  if(strcmp(args_parsed[0], "exit") == 0 ){
@@ -442,5 +436,3 @@ int main(int argc, char **argv){
 	}
   }
 }
-
-//would like to make pipeline less ugly
