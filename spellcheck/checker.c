@@ -33,9 +33,13 @@ int num_lines(FILE *fp){
 
 char **create_word_list(FILE *word_file){
   int lines = num_lines(word_file);
-  char **word_list = (char **) malloc(sizeof(char) * lines);
-  char *word;
-  while(fgets("%s\n",
+  char **word_list = (char **) malloc((sizeof(char) * lines) + 1);
+  char *word = NULL;
+  while(fscanf(word_file, "%s", word) > 0){
+	*word_list = word;
+	word_list++;
+  }
+  //*word_list = NULL;
   /*
 	for each line in fp
 	malloc char * in wl
@@ -59,6 +63,11 @@ int main(int argc, char **argv){
 	DICT_PATH = argv[1];
   }
 
-  char **wl = create_word_list(open_dict(DICT_PATH));
-  free_word_list(wl);
+  FILE *wf = open_dict(DICT_PATH);
+  char **wl = create_word_list(wf);
+  fclose(wf);
+
+  printf("%s\n",*wl);
+  //free_word_list(wl);
+  return 0;
 }
