@@ -2,9 +2,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <pthread.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 char *DICT_PATH = "/usr/share/dict/words";
-int DEFAULT_PORT = 90002;
+int DEFAULT_PORT = 80;
+
+/*
+pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+int avail = 1;
+*/
 
 FILE *open_dict(char *path);
 int num_words(FILE *fp);
@@ -13,6 +25,8 @@ void get_words(FILE *word_file, char *words);
 void parse(char *words, char **word_list);
 void free_wl(char **wl);
 
+int check_word(char **dict, char *word);
+void *consume(void *socket_arr);
 
 FILE *open_dict(char *path){
   FILE *fp = fopen(path, "r");
@@ -102,6 +116,22 @@ void free_wl(char **wl){
   free(temp);
 }
 
+int check_word(char **dict, char *word){
+  while(*dict != NULL){
+	if(strcmp(*dict, word) == 0){
+	  return 1;
+	}
+	dict++;
+  }
+  return 0;
+}
+
+void *consume(void *socketid){
+
+  //int sockid = (int) socketid;
+  printf("%d\n", (int) pthread_self());
+  return NULL;
+}
 
 int main(int argc, char **argv){
   //manually set dict file and port if necessary
@@ -117,14 +147,88 @@ int main(int argc, char **argv){
   fclose(wf);
   parse(words, wl);
 
+  //connect to socket singularly just to test
+  pid_t pid;
+  pid = fork();
+  if(pid == 0){
+	int socket_desc;
+  struct sockaddr_in server;
+
+  socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+  if(socket_desc == -1){
+	fprintf(stderr, "%s: Could not create socket", argv[0]);
+	exit(1);
+  }
+
+  server.sin_addr.s_addr = inet_addr("127.0.0.1");
+  server.sin_family = AF_INET;
+  server.sin_port = htons(80);
+
+  if(connect(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
+	fprintf(stderr, "%s: failed to establish socket\n", argv[0]);
+	return 1;
+  }
+  printf("Connected to socket\n");
+  }else{
+	wait(NULL);
+  }
+
+  //create 5 sockets, read into circular array
+  /*
+  int socket_arr[5];
+  int elem = 0;
+  for(int i = 0; i < 5; i++){
+	int socket_desc;
+	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+	if(socket_desc == -1){
+	  fprintf(stderr, "Could not create socket");
+	  exit(1);
+	}
+	socket_arr[elem] = socket_desc;
+	elem = (elem + 1) % 5;
+  }
 
 
-  //references used for wl, should free everything
+  while(1){
+	printf("%d\n", socket_arr[elem]);
+	elem = (elem + 1) % 5;
+  }
+  */
+
+
+  //save this for later
+  //create 5 threads, send to consumer function
+  /*
+  int i;
+  pthread_t tid;
+  for(i = 0; i < 5; i++){
+	pthread_create(&tid, NULL, consume(&socket_arr[5]), NULL);
+  }
+  pthread_exit(NULL);
+  */
+
+  /*
+	parent:
+	setup 5 sockets
+	while(if word is in socket){
+	  produce socket descriptor into circular array
+	}
+	child:
+	consume socket descriptor from circular array {
+	check-word
+	return true or false to socket for the client
+	release element of circular array (consumer process)
+	}
+
+
+  references used for wl, should free everything
+  */
   free(words);
   return 0;
 }
+
 /*
-  can a semaphore be used rather than a condition variable
-  instructions say not to create a client
+  can a semaphore be used rather than a condition variable -- must use cv
+  instructions say not to create a client -- don't need to make a client
  */
 
