@@ -2,15 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/socket.h>
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 char *DICT_PATH = "/usr/share/dict/words";
-int DEFAULT_PORT = 80;
+char *DEFAULT_PORT = "90002";
 
 /*
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -101,7 +102,7 @@ void import_args(int argc, char **argv){
 	DICT_PATH = argv[dict];
   }
   if(port){
-	DEFAULT_PORT = atoi(argv[port]);
+	DEFAULT_PORT = argv[port];
   }
 }
 
@@ -146,13 +147,66 @@ int main(int argc, char **argv){
   get_words(wf, words);
   fclose(wf);
   parse(words, wl);
+  //dict datastructure setup, no more
+
+
+
 
   //connect to socket singularly just to test
-  pid_t pid;
-  pid = fork();
-  if(pid == 0){
-	int socket_desc;
-  struct sockaddr_in server;
+  struct sockaddr_storage their_addr;
+  socklen_t addr_size;
+  struct addrinfo hints, *res;
+  int sockfd, new_fd;
+
+  // !! don't forget your error checking for these calls !!
+
+  // first, load up address structs with getaddrinfo():
+
+ memset(&hints, 0, sizeof(hints));
+ hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
+ hints.ai_socktype = SOCK_STREAM;
+ //hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+
+ getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &res);
+
+ // make a socket, bind it, and listen on it:
+
+ sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+ bind(sockfd, res->ai_addr, res->ai_addrlen);
+ listen(sockfd, 5);
+
+ // now accept an incoming connection:
+
+ addr_size = sizeof their_addr;
+ new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+
+ void *buf = malloc(sizeof(char) * 64);
+ char word[64];
+ char *yes = "Correct Spelling\n";
+ char *no = "Incorrect Spelling\n";
+
+
+ while(1){
+   recv(new_fd, buf, 64, 0);
+
+   sscanf((char *) buf, "%s\n", word);
+
+   if(check_word(wl, word) == 1){
+	 send(new_fd, yes, strlen(yes), 0);
+   }else{
+	 send(new_fd, no, strlen(no), 0);
+   }
+ }
+
+
+
+ free(buf);
+ freeaddrinfo(res);
+ free(wl);
+
+
+
+	/*
 
   socket_desc = socket(AF_INET, SOCK_STREAM, 0);
   if(socket_desc == -1){
@@ -160,10 +214,23 @@ int main(int argc, char **argv){
 	exit(1);
   }
 
+  struct sockaddr_in server;
   server.sin_addr.s_addr = inet_addr("127.0.0.1");
   server.sin_family = AF_INET;
   server.sin_port = htons(80);
 
+
+
+  if(listen(socket_desc, 5) < 0){
+	fprintf(stderr, "%s: failed to listen on port %d\n", argv[0], DEFAULT_PORT);
+  }
+  printf("Listening on port: %d\n", DEFAULT_PORT);
+  accept();
+
+  close(socket_desc);
+
+  */
+  /*
   if(connect(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
 	fprintf(stderr, "%s: failed to establish socket\n", argv[0]);
 	return 1;
@@ -172,6 +239,7 @@ int main(int argc, char **argv){
   }else{
 	wait(NULL);
   }
+  */
 
   //create 5 sockets, read into circular array
   /*
