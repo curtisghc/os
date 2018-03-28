@@ -9,7 +9,7 @@ run: compile
 	./checker
 
 compile:
-	$(CC) $(CFLAGS) -o checker checker.c
+	$(CC) $(CFLAGS) -o checker checker.c queue.h
 
 clean:
 	$(CLEANUP)

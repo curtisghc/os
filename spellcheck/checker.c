@@ -10,8 +10,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "queue.h"
+
 char *DICT_PATH = "/usr/share/dict/words";
-char *DEFAULT_PORT = "90002";
+char *DEFAULT_PORT = "24466";
 
 /*
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -149,62 +151,62 @@ int main(int argc, char **argv){
   parse(words, wl);
   //dict datastructure setup, no more
 
-
-
-
   //connect to socket singularly just to test
   struct sockaddr_storage their_addr;
   socklen_t addr_size;
   struct addrinfo hints, *res;
   int sockfd, new_fd;
 
-  // !! don't forget your error checking for these calls !!
+  //need to do error checking
 
   // first, load up address structs with getaddrinfo():
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
+  hints.ai_socktype = SOCK_STREAM;
+  //hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
 
- memset(&hints, 0, sizeof(hints));
- hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
- hints.ai_socktype = SOCK_STREAM;
- //hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
+  getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &res);
 
- getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &res);
+  // make a socket, bind it, and listen on it:
 
- // make a socket, bind it, and listen on it:
+  sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+  bind(sockfd, res->ai_addr, res->ai_addrlen);
+  listen(sockfd, 5);
 
- sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
- bind(sockfd, res->ai_addr, res->ai_addrlen);
- listen(sockfd, 5);
+  // now accept an incoming connection:
+  addr_size = sizeof their_addr;
+  new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
 
- // now accept an incoming connection:
+  void *buf = malloc(sizeof(char) * 64);
+  char word[64];
+  char *yes = "Correct Spelling\n";
+  char *no = "Incorrect Spelling\n";
 
- addr_size = sizeof their_addr;
- new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+  //need to work on word queue
+  struct queue *word_queue = (queue *) malloc(sizeof(queue));
+  word_queue->size = 0;
 
- void *buf = malloc(sizeof(char) * 64);
- char word[64];
- char *yes = "Correct Spelling\n";
- char *no = "Incorrect Spelling\n";
+  while(1){
+	recv(new_fd, buf, 64, 0);
 
+	sscanf((char *) buf, "%s\n", word);
 
- while(1){
-   recv(new_fd, buf, 64, 0);
-
-   sscanf((char *) buf, "%s\n", word);
-
-   if(check_word(wl, word) == 1){
-	 send(new_fd, yes, strlen(yes), 0);
-   }else{
-	 send(new_fd, no, strlen(no), 0);
-   }
- }
+	enqueue(word_queue, word);
 
 
+	if(check_word(wl, word) == 1){
+	  send(new_fd, yes, strlen(yes), 0);
+	}else{
+	  send(new_fd, no, strlen(no), 0);
+	}
+  }
 
- free(buf);
- freeaddrinfo(res);
- free(wl);
+  print_queue(word_queue);
 
-
+  delete_queue(word_queue);
+  free(buf);
+  freeaddrinfo(res);
+  free(wl);
 
 	/*
 
@@ -291,7 +293,6 @@ int main(int argc, char **argv){
 
   references used for wl, should free everything
   */
-  free(words);
   return 0;
 }
 
