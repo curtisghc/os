@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct queue{
   int size;
@@ -20,7 +21,9 @@ void print_queue(struct queue *q);
 
 void enqueue(struct queue *q, char *word){
   struct node *n = (node *) malloc(sizeof(node));
-  n->data = word;
+  n->data = (char *) malloc(strlen(word) + 1);
+  strcpy(n->data, word);
+  n->next = NULL;
 
   if(q->size == 0){
     q->head = n;
@@ -56,6 +59,7 @@ void delete_queue(struct queue *q){
 	node *temp = current;
 	for(int i = q->size; i > 1; i--){
 	  temp = current->next;
+	  free(current->data);
 	  free(current);
 	  current = temp;
 	}
@@ -67,11 +71,12 @@ void print_queue(queue *q){
   if(q->size == 0){
 	printf("Empty Queue!\n");
   }else{
-	node *head = q->head;
+	node *temp = q->head;
 	printf("\n[");
-	while(head->next != NULL){
-	  printf("%s->", head->data);
+	for(int i = q->size; i > 0; i--){//while(temp->next != NULL){
+	  printf("%s->", temp->data);
+	  temp = temp->next;
 	}
-	printf("%s]\n", head->data);
+	printf("]\n");
   }
 }

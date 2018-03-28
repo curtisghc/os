@@ -163,7 +163,6 @@ int main(int argc, char **argv){
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
   hints.ai_socktype = SOCK_STREAM;
-  //hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
 
   getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &res);
 
@@ -173,33 +172,58 @@ int main(int argc, char **argv){
   bind(sockfd, res->ai_addr, res->ai_addrlen);
   listen(sockfd, 5);
 
+  //this doesn't print the correct address or port
+  printf("Listening on at: %s\n", res->ai_addr->sa_data);
+  //getsockname(sockfd, (struct sockaddr *)&their_addr, &addr_size));
+
   // now accept an incoming connection:
   addr_size = sizeof their_addr;
   new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
 
   void *buf = malloc(sizeof(char) * 64);
   char word[64];
-  char *yes = "Correct Spelling\n";
-  char *no = "Incorrect Spelling\n";
+  //char *logline;
+  char *yes = "OK\n";
+  char *no = "MISSPELLED\n";
 
   //need to work on word queue
   struct queue *word_queue = (queue *) malloc(sizeof(queue));
   word_queue->size = 0;
 
+  /*
+  int sockids[5];
+  for(int index = 0; ; index = (index + 1) % 5){
+	//add new socket to circular queue
+	sockids[index] = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+	//wakeup monitor, one of the threads will unlock hopefully
+  }
+  */
+
   while(1){
+
+	//recieve word, scan into "word"
 	recv(new_fd, buf, 64, 0);
-
 	sscanf((char *) buf, "%s\n", word);
-
-	enqueue(word_queue, word);
+	if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
+	  break;
 
 
 	if(check_word(wl, word) == 1){
 	  send(new_fd, yes, strlen(yes), 0);
+	  strcat(word, " -- ");
+	  strcat(word, yes);
+	  //logline = " -- Correct\n";
 	}else{
 	  send(new_fd, no, strlen(no), 0);
+	  strcat(word, " -- ");
+	  strcat(word, no);
+	  //logline = " -- Incorrect\n";
 	}
+
+	//strcat(word, logline);
+	enqueue(word_queue, word);
   }
+
 
   print_queue(word_queue);
 
@@ -207,41 +231,6 @@ int main(int argc, char **argv){
   free(buf);
   freeaddrinfo(res);
   free(wl);
-
-	/*
-
-  socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-  if(socket_desc == -1){
-	fprintf(stderr, "%s: Could not create socket", argv[0]);
-	exit(1);
-  }
-
-  struct sockaddr_in server;
-  server.sin_addr.s_addr = inet_addr("127.0.0.1");
-  server.sin_family = AF_INET;
-  server.sin_port = htons(80);
-
-
-
-  if(listen(socket_desc, 5) < 0){
-	fprintf(stderr, "%s: failed to listen on port %d\n", argv[0], DEFAULT_PORT);
-  }
-  printf("Listening on port: %d\n", DEFAULT_PORT);
-  accept();
-
-  close(socket_desc);
-
-  */
-  /*
-  if(connect(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0){
-	fprintf(stderr, "%s: failed to establish socket\n", argv[0]);
-	return 1;
-  }
-  printf("Connected to socket\n");
-  }else{
-	wait(NULL);
-  }
-  */
 
   //create 5 sockets, read into circular array
   /*
