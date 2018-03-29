@@ -15,6 +15,19 @@
 char *DICT_PATH = "/usr/share/dict/words";
 char *DEFAULT_PORT = "24466";
 
+typedef struct prims{
+  int *socket_index;
+  int *socketids;
+  char **word_list;
+  char *filename;
+  struct queue *word_queue;
+  pthread_mutex_t *log_mtx;
+  pthread_mutex_t *cond_mtx;
+  pthread_cond_t *CV;
+  //needs to include monitor;
+
+}prims;
+
 /*
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -30,6 +43,9 @@ void free_wl(char **wl);
 
 int check_word(char **dict, char *word);
 void *consume(void *socket_arr);
+void *recieve_connection(void *args);
+void *write_log(void *args);
+
 
 FILE *open_dict(char *path){
   FILE *fp = fopen(path, "r");
@@ -129,12 +145,96 @@ int check_word(char **dict, char *word){
   return 0;
 }
 
+/*
 void *consume(void *socketid){
-
   //int sockid = (int) socketid;
   printf("%d\n", (int) pthread_self());
   return NULL;
 }
+*/
+
+void *recieve_connection(void *args){
+
+  struct prims *prims = (struct prims *) args;
+
+  //this should be per thread
+  void *buf = malloc(sizeof(char) * 64);
+  char word[64];
+  //char *logline;
+  char *yes = "OK\n";
+  char *no = "MISSPELLED\n";
+
+  int *index = prims->socket_index;
+  int *sockids = prims->socketids;
+  char **wl = prims->word_list;
+  struct queue *word_queue = prims->word_queue;
+  pthread_mutex_t *log_mtx = prims->log_mtx;
+  pthread_mutex_t *cond_mtx = prims->cond_mtx;
+  pthread_cond_t *CV = prims->CV;
+
+
+
+  //int sock_fd = consume(socketarray);
+
+  while(1){
+
+	//monitor lock
+	pthread_cond_wait(CV, cond_mtx);
+	//recieve word, scan into "word"
+	//recv(new_fd, buf, 64, 0);
+	recv(sockids[*index], buf, 64, 0);
+
+	sscanf((char *) buf, "%s\n", word);
+	if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
+	  break;
+
+
+	if(check_word(wl, word) == 1){
+	  strcat(word, " ");
+	  strcat(word, yes);
+	  send(sockids[*index], yes, strlen(yes), 0);
+	}else{
+	  strcat(word, " ");
+	  strcat(word, no);
+	  send(sockids[*index], no, strlen(no), 0);
+	}
+
+
+	//critical section
+	pthread_mutex_lock(log_mtx);
+	enqueue(word_queue, word);
+	pthread_mutex_unlock(log_mtx);
+  }
+  //monitor unlock
+
+  free(buf);
+  return NULL;
+}
+
+void *write_log(void *args){// struct queue *word_queue, pthread_mutex_t *M){
+  struct prims *prims = (struct prims *) args;
+
+
+  struct queue *word_queue = prims->word_queue;
+  pthread_mutex_t *log_mtx = prims->log_mtx;
+  char *filename = prims->filename;
+
+
+  FILE *fp = fopen(filename, "w");
+  if(fp == NULL){
+	fprintf(stderr, "%s: unable to write to log file", filename);
+  }else{
+	while(1){
+	  //critical section
+	  pthread_mutex_lock(log_mtx);
+	  fprintf(fp, "%s", dequeue(word_queue));
+	  pthread_mutex_unlock(log_mtx);
+	}
+  }
+  fclose(fp);
+  return NULL;
+}
+
 
 int main(int argc, char **argv){
   //manually set dict file and port if necessary
@@ -151,137 +251,104 @@ int main(int argc, char **argv){
   parse(words, wl);
   //dict datastructure setup, no more
 
+
+  //now do socket stuff
   //connect to socket singularly just to test
   struct sockaddr_storage their_addr;
   socklen_t addr_size;
   struct addrinfo hints, *res;
-  int sockfd, new_fd;
+  int sockfd;//, new_fd;
 
   //need to do error checking
-
   // first, load up address structs with getaddrinfo():
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
   hints.ai_socktype = SOCK_STREAM;
-
   getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &res);
 
   // make a socket, bind it, and listen on it:
-
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, res->ai_addr, res->ai_addrlen);
   listen(sockfd, 5);
-
   //this doesn't print the correct address or port
-  printf("Listening on at: %s\n", res->ai_addr->sa_data);
-  //getsockname(sockfd, (struct sockaddr *)&their_addr, &addr_size));
-
+  printf("Listening on at: %s\n", DEFAULT_PORT);
   // now accept an incoming connection:
   addr_size = sizeof their_addr;
-  new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
 
-  void *buf = malloc(sizeof(char) * 64);
-  char word[64];
-  //char *logline;
-  char *yes = "OK\n";
-  char *no = "MISSPELLED\n";
 
-  //need to work on word queue
+  //distinct thread should use this, but main initializes
   struct queue *word_queue = (queue *) malloc(sizeof(queue));
   word_queue->size = 0;
 
-  /*
-  int sockids[5];
+  //circular array for socket ids
+  int *sockids = (int *) malloc(sizeof(int) * 5);
+
+  //set up synchronization primates
+  pthread_mutex_t log_mtx;
+  pthread_mutex_init(&log_mtx, NULL);
+  pthread_mutex_t cond_mtx;
+  pthread_mutex_init(&cond_mtx, NULL);
+  pthread_cond_t CV;
+  pthread_cond_init(&CV, NULL);
+
+  //create primitives struct for easy passing
+  struct prims *prims = (struct prims *) malloc(sizeof(prims));
+  prims->socket_index = (int *) malloc(sizeof(int));
+  prims->socketids = sockids;
+  prims->word_list = wl;
+  prims->filename = "logfile";
+  prims->word_queue = word_queue;
+  prims->log_mtx = &log_mtx;
+  prims->cond_mtx = &cond_mtx;
+  prims->CV = &CV;
+
+  //create one thread, send to work on log writing and then
+  //create 5 threads, send them to wait for sockids to open
+  pthread_t tid;
+  for(int i = 0; i < 5; i++){
+	pthread_create(&tid, NULL, recieve_connection, prims);
+	pthread_detach(tid);
+  }
+  pthread_exit(NULL);
+
+  pthread_create(&tid, NULL, write_log, prims);
+  pthread_exit(NULL);
+
+
+  //make main loop toward end; main should mostly be waiting for accept() to return
   for(int index = 0; ; index = (index + 1) % 5){
 	//add new socket to circular queue
+
+	//lock index of socket array? should be locked while threads are connected
 	sockids[index] = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+	*prims->socket_index = index;
+	//unlock
+	pthread_cond_signal(&CV);
 	//wakeup monitor, one of the threads will unlock hopefully
   }
-  */
 
+  /*
+  //working thing
   while(1){
-
-	//recieve word, scan into "word"
-	recv(new_fd, buf, 64, 0);
-	sscanf((char *) buf, "%s\n", word);
-	if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
-	  break;
-
-
-	if(check_word(wl, word) == 1){
-	  send(new_fd, yes, strlen(yes), 0);
-	  strcat(word, " -- ");
-	  strcat(word, yes);
-	  //logline = " -- Correct\n";
-	}else{
-	  send(new_fd, no, strlen(no), 0);
-	  strcat(word, " -- ");
-	  strcat(word, no);
-	  //logline = " -- Incorrect\n";
-	}
-
-	//strcat(word, logline);
-	enqueue(word_queue, word);
+	new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+	recieve_connection(wl, new_fd, word_queue);
   }
+  */
 
 
   print_queue(word_queue);
-
-  delete_queue(word_queue);
-  free(buf);
+  //tidying up
   freeaddrinfo(res);
   free(wl);
 
-  //create 5 sockets, read into circular array
-  /*
-  int socket_arr[5];
-  int elem = 0;
-  for(int i = 0; i < 5; i++){
-	int socket_desc;
-	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-	if(socket_desc == -1){
-	  fprintf(stderr, "Could not create socket");
-	  exit(1);
-	}
-	socket_arr[elem] = socket_desc;
-	elem = (elem + 1) % 5;
-  }
+  free(prims->socket_index);
+  free(prims->socketids);
+  delete_queue(prims->word_queue);
+  pthread_mutex_destroy(&log_mtx);
+  pthread_mutex_destroy(&cond_mtx);
+  pthread_cond_destroy(&CV);
+  free(prims);
 
-
-  while(1){
-	printf("%d\n", socket_arr[elem]);
-	elem = (elem + 1) % 5;
-  }
-  */
-
-
-  //save this for later
-  //create 5 threads, send to consumer function
-  /*
-  int i;
-  pthread_t tid;
-  for(i = 0; i < 5; i++){
-	pthread_create(&tid, NULL, consume(&socket_arr[5]), NULL);
-  }
-  pthread_exit(NULL);
-  */
-
-  /*
-	parent:
-	setup 5 sockets
-	while(if word is in socket){
-	  produce socket descriptor into circular array
-	}
-	child:
-	consume socket descriptor from circular array {
-	check-word
-	return true or false to socket for the client
-	release element of circular array (consumer process)
-	}
-
-
-  references used for wl, should free everything
-  */
   return 0;
 }
 
@@ -289,4 +356,3 @@ int main(int argc, char **argv){
   can a semaphore be used rather than a condition variable -- must use cv
   instructions say not to create a client -- don't need to make a client
  */
-

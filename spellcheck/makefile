@@ -1,5 +1,5 @@
 CC=gcc -std=gnu11
-CFLAGS=-Wall -g -lpthread
+CFLAGS=-Wall -g -pthread -lpthread
 
 CLEANUP=rm -rf checker *.gch
 
