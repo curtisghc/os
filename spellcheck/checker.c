@@ -11,6 +11,7 @@
   For each word the client enters, that word will be checked, and returned
   indicating if the word is spelled correctly.
 
+  Server will run until interrupted
  */
 
 #include <stdio.h>
@@ -33,6 +34,8 @@ char *DEFAULT_PORT = "24466";
 char *DEFAULT_ADDRESS = "127.0.0.1";
 
 int NUM_THREADS = 5;
+
+sig_atomic_t gotint = 0;
 
 //synchronization primates
 pthread_mutex_t LOG_MTX = PTHREAD_MUTEX_INITIALIZER;
@@ -168,12 +171,17 @@ int check_word(char **dict, char *word){
   return 0;
 }
 
+void handle_sigpipe(){
+  gotint = 1;
+}
+
 void *recieve_connection(void *args){
   struct prims *prims = (struct prims *) args;
 
-  //this should be per thread
-  void *buf = malloc(sizeof(char) * 64);
-  char word[64];
+  //optimal, but mallocing for each word works too
+  //void *buf = malloc(sizeof(char) * 64);
+  //char *word = (char *) malloc(sizeof(char) * 64);
+
   char *yes = " OK\n";
   char *no = " MISSPELLED\n";
 
@@ -196,20 +204,35 @@ void *recieve_connection(void *args){
 	pthread_cond_signal(&MAIN_PRODUCE_CV);
 	pthread_mutex_unlock(&MAIN_MTX);
 
-	send(myid, "ENTER 'q' to quit\n", 19, 0);
+	send(myid, "ENTER or 'q' to quit\n", 22, 0);
 
 
 	while(1){
+	  //ugly as shit, malloc every time
+	  //only way to get enter to quit client, try to fix
+
+	  void *buf = malloc(sizeof(char) * 64);
+	  char *word = (char *) malloc(sizeof(char) * 64);
+
+	  *word = '\0';
 
 	  recv(myid, buf, 64, 0);
 	  sscanf((char *) buf, "%s\n", word);
 
-	  //quit condition
-	  if(*word == '\n')
-		break;
+	  //handle client exiting, give exit conditions
+	  signal(SIGPIPE, handle_sigpipe);
 
-	  if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
+	  if(gotint || *word == '\0' || strcmp(word, "q") == 0){
+		free(buf);
+		free(word);
 		break;
+	  }
+
+	  //quit condition
+	  /*
+	  if(*word == '\0' || strcmp(word, "q") == 0)
+		break;
+	  */
 
 	  if(check_word(wl, word) == 1){
 		strcat(word, yes);
@@ -222,10 +245,16 @@ void *recieve_connection(void *args){
 	  pthread_mutex_lock(&LOG_MTX);
 	  enqueue(word_queue, word);
 	  pthread_mutex_unlock(&LOG_MTX);
+
+	  //part of that ugliness
+	  free(buf);
+	  free(word);
 	}
+	printf("Connection closed\n");
 	close(myid);
   }
-  free(buf);
+  //free(buf);
+  //free(word);
   pthread_exit(NULL);
 }
 
@@ -350,11 +379,7 @@ int main(int argc, char **argv){
 
   }
 
-
-
-  print_queue(word_queue);
   //tidying up
-
   freeaddrinfo(res);
   free(wl);
 
@@ -369,11 +394,6 @@ int main(int argc, char **argv){
 
   return 0;
 }
-/*
-  sigpipe/segfault terminates when using telnet quit
-  not able to service 2 clients at the same time
- */
-
 
 /*
   can a semaphore be used rather than a condition variable -- must use cv
