@@ -16,15 +16,21 @@ typedef struct node{
 //queue functions
 void enqueue(struct queue *q, char *word);
 char *dequeue(struct queue *q);
+char *peek(struct queue *q);
 void delete_queue(struct queue *q);
 void print_queue(struct queue *q);
 
 void enqueue(struct queue *q, char *word){
   struct node *n = (node *) malloc(sizeof(node));
+
   n->data = (char *) malloc(strlen(word) + 1);
   strcpy(n->data, word);
-  n->next = NULL;
 
+  n->next = q->head;
+  q->head = n;
+
+
+  /*
   if(q->size == 0){
     q->head = n;
   }else{
@@ -34,6 +40,7 @@ void enqueue(struct queue *q, char *word){
 	}
 	current->next = n;
   }
+  */
   q->size++;
 }
 
@@ -48,6 +55,14 @@ char *dequeue(struct queue *q){
 
   free(temp);
   return word;
+}
+
+char *peek(struct queue *q){
+  if(q->size == 0){
+	return NULL;
+  }else{
+	return q->head->data;
+  }
 }
 
 void delete_queue(struct queue *q){

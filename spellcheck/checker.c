@@ -12,8 +12,20 @@
 
 #include "queue.h"
 
+
 char *DICT_PATH = "/usr/share/dict/words";
 char *DEFAULT_PORT = "24466";
+
+int NUM_THREADS = 5;
+
+//synchronization primates
+pthread_mutex_t LOG_MTX = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t MAIN_MTX = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t testlock = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t LOG_CV = PTHREAD_COND_INITIALIZER;
+pthread_cond_t MAIN_CV = PTHREAD_COND_INITIALIZER;
+
 
 typedef struct prims{
   int *socket_index;
@@ -21,28 +33,18 @@ typedef struct prims{
   char **word_list;
   char *filename;
   struct queue *word_queue;
-  pthread_mutex_t *log_mtx;
-  pthread_mutex_t *cond_mtx;
-  pthread_cond_t *CV;
-  //needs to include monitor;
-
 }prims;
 
-/*
-pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-int avail = 1;
-*/
-
+//dumb stuff
 FILE *open_dict(char *path);
 int num_words(FILE *fp);
 int wl_size(FILE *fp);
 void get_words(FILE *word_file, char *words);
 void parse(char *words, char **word_list);
 void free_wl(char **wl);
-
 int check_word(char **dict, char *word);
-void *consume(void *socket_arr);
+
+//real stuff
 void *recieve_connection(void *args);
 void *write_log(void *args);
 
@@ -145,22 +147,12 @@ int check_word(char **dict, char *word){
   return 0;
 }
 
-/*
-void *consume(void *socketid){
-  //int sockid = (int) socketid;
-  printf("%d\n", (int) pthread_self());
-  return NULL;
-}
-*/
-
 void *recieve_connection(void *args){
-
   struct prims *prims = (struct prims *) args;
 
   //this should be per thread
   void *buf = malloc(sizeof(char) * 64);
   char word[64];
-  //char *logline;
   char *yes = "OK\n";
   char *no = "MISSPELLED\n";
 
@@ -168,71 +160,81 @@ void *recieve_connection(void *args){
   int *sockids = prims->socketids;
   char **wl = prims->word_list;
   struct queue *word_queue = prims->word_queue;
-  pthread_mutex_t *log_mtx = prims->log_mtx;
-  pthread_mutex_t *cond_mtx = prims->cond_mtx;
-  pthread_cond_t *CV = prims->CV;
 
 
+  int myid;
 
-  //int sock_fd = consume(socketarray);
-
+  //wait for broadcast from main to get sockids
   while(1){
+	//instead of all this, just wait for broadcast from main
 
-	//monitor lock
-	pthread_cond_wait(CV, cond_mtx);
-	//recieve word, scan into "word"
-	//recv(new_fd, buf, 64, 0);
-	recv(sockids[*index], buf, 64, 0);
-
-	sscanf((char *) buf, "%s\n", word);
-	if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
-	  break;
+	pthread_cond_wait(&MAIN_CV, &MAIN_MTX);
+	myid = sockids[*index];
 
 
-	if(check_word(wl, word) == 1){
-	  strcat(word, " ");
-	  strcat(word, yes);
-	  send(sockids[*index], yes, strlen(yes), 0);
-	}else{
-	  strcat(word, " ");
-	  strcat(word, no);
-	  send(sockids[*index], no, strlen(no), 0);
+	while(1){
+
+	  recv(myid, buf, 64, 0);
+	  sscanf((char *) buf, "%s\n", word);
+
+	  //quit condition
+	  if(strcmp(word, "q") == 0 || strcmp(word, "quit") == 0)
+		break;
+
+	  if(check_word(wl, word) == 1){
+		strcat(word, " ");
+		strcat(word, yes);
+		send(myid, yes, strlen(yes), 0);
+	  }else{
+		strcat(word, " ");
+		strcat(word, no);
+		send(myid, no, strlen(no), 0);
+	  }
+	  //broadcast main to wake up -- release lock
+
+
+	  //critical section
+	  //wait for log mutex -- maybe CV
+	  enqueue(word_queue, word);
+	  //wakeup log writer
+	  pthread_cond_broadcast(&LOG_CV);
 	}
-
-
-	//critical section
-	pthread_mutex_lock(log_mtx);
-	enqueue(word_queue, word);
-	pthread_mutex_unlock(log_mtx);
+	close(myid);
   }
-  //monitor unlock
-
   free(buf);
-  return NULL;
+  pthread_exit(NULL);
 }
 
-void *write_log(void *args){// struct queue *word_queue, pthread_mutex_t *M){
+void *write_log(void *args){
   struct prims *prims = (struct prims *) args;
 
 
   struct queue *word_queue = prims->word_queue;
-  pthread_mutex_t *log_mtx = prims->log_mtx;
   char *filename = prims->filename;
 
+  FILE *fp;
 
-  FILE *fp = fopen(filename, "w");
-  if(fp == NULL){
-	fprintf(stderr, "%s: unable to write to log file", filename);
-  }else{
-	while(1){
-	  //critical section
-	  pthread_mutex_lock(log_mtx);
-	  fprintf(fp, "%s", dequeue(word_queue));
-	  pthread_mutex_unlock(log_mtx);
-	}
-  }
+  //initialize log file to be overwritten per session
+  fp = fopen(filename, "w");
   fclose(fp);
-  return NULL;
+
+  while(1){
+	//critical section
+	//wait to acquire log mutex -- maybe CV so it can block
+	pthread_cond_wait(&LOG_CV, &LOG_MTX);
+
+	//append word to and then close log file every time
+	fp = fopen(filename, "a");
+	if(fp == NULL){
+	  fprintf(stderr, "Error writing to log file");
+	}else {
+	  fprintf(fp, "%s", dequeue(word_queue));
+	}
+	fclose(fp);
+	//release log mutex / CV
+  }
+
+  pthread_exit(NULL);
 }
 
 
@@ -269,7 +271,7 @@ int main(int argc, char **argv){
   // make a socket, bind it, and listen on it:
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, res->ai_addr, res->ai_addrlen);
-  listen(sockfd, 5);
+  listen(sockfd, NUM_THREADS);
   //this doesn't print the correct address or port
   printf("Listening on at: %s\n", DEFAULT_PORT);
   // now accept an incoming connection:
@@ -281,15 +283,8 @@ int main(int argc, char **argv){
   word_queue->size = 0;
 
   //circular array for socket ids
-  int *sockids = (int *) malloc(sizeof(int) * 5);
+  int *sockids = (int *) malloc(sizeof(int) * NUM_THREADS);
 
-  //set up synchronization primates
-  pthread_mutex_t log_mtx;
-  pthread_mutex_init(&log_mtx, NULL);
-  pthread_mutex_t cond_mtx;
-  pthread_mutex_init(&cond_mtx, NULL);
-  pthread_cond_t CV;
-  pthread_cond_init(&CV, NULL);
 
   //create primitives struct for easy passing
   struct prims *prims = (struct prims *) malloc(sizeof(prims));
@@ -298,59 +293,62 @@ int main(int argc, char **argv){
   prims->word_list = wl;
   prims->filename = "logfile";
   prims->word_queue = word_queue;
-  prims->log_mtx = &log_mtx;
-  prims->cond_mtx = &cond_mtx;
-  prims->CV = &CV;
+
 
   //create one thread, send to work on log writing and then
-  //create 5 threads, send them to wait for sockids to open
+  //create num_threads threads, send them to wait for sockids to open
   pthread_t tid;
-  for(int i = 0; i < 5; i++){
+  for(int i = 0; i < NUM_THREADS; i++){
 	pthread_create(&tid, NULL, recieve_connection, prims);
 	pthread_detach(tid);
   }
-  pthread_exit(NULL);
 
   pthread_create(&tid, NULL, write_log, prims);
-  pthread_exit(NULL);
 
 
-  //make main loop toward end; main should mostly be waiting for accept() to return
-  for(int index = 0; ; index = (index + 1) % 5){
+  int newid;
+  for(int index = 0; ; index = (index + 1) % NUM_THREADS){
 	//add new socket to circular queue
 
-	//lock index of socket array? should be locked while threads are connected
-	sockids[index] = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+	//pthread_cond_wait(&CV, &cond_mtx);
+
+	newid = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+	printf("New connection\n");
+
+	//lock out sockids array
+
+	// should fix this to be locked
+	sockids[index] = newid;
 	*prims->socket_index = index;
-	//unlock
-	pthread_cond_signal(&CV);
-	//wakeup monitor, one of the threads will unlock hopefully
+	//instead of all this, broadcast to CV
+	pthread_cond_broadcast(&MAIN_CV);
+
   }
 
-  /*
-  //working thing
-  while(1){
-	new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
-	recieve_connection(wl, new_fd, word_queue);
-  }
-  */
 
 
   print_queue(word_queue);
   //tidying up
+
   freeaddrinfo(res);
   free(wl);
 
   free(prims->socket_index);
   free(prims->socketids);
   delete_queue(prims->word_queue);
-  pthread_mutex_destroy(&log_mtx);
-  pthread_mutex_destroy(&cond_mtx);
-  pthread_cond_destroy(&CV);
+
+  pthread_mutex_destroy(&LOG_MTX);
+  pthread_mutex_destroy(&MAIN_MTX);
+  pthread_cond_destroy(&MAIN_CV);
   free(prims);
 
   return 0;
 }
+/*
+  sigpipe/segfault terminates when using telnet quit
+  not able to service 2 clients at the same time
+ */
+
 
 /*
   can a semaphore be used rather than a condition variable -- must use cv
