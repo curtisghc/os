@@ -163,6 +163,8 @@ void *recieve_connection(void *args){
   //optimal, but mallocing for each word works too
   //void *buf = malloc(sizeof(char) * 64);
   //char *word = (char *) malloc(sizeof(char) * 64);
+  char *buf;
+  char *word;
 
   char *yes = " OK\n";
   char *no = " MISSPELLED\n";
@@ -193,8 +195,8 @@ void *recieve_connection(void *args){
 	  //ugly as shit, malloc every time
 	  //only way to get enter to quit client, try to fix
 
-	  void *buf = malloc(sizeof(char) * 64);
-	  char *word = (char *) malloc(sizeof(char) * 64);
+	  buf = malloc(sizeof(char) * 64);
+	  word = (char *) malloc(sizeof(char) * 64);
 
 	  *word = '\0';
 
