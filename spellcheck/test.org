@@ -1,0 +1,5 @@
+* Testing
+  To test this program, I would just enter a random variety of inputs into telnet, until an error occured, or there was an undesired output. Whenever that happened, I would run the program in gdb, and replicate the error to understand exactly what caused it. Then I'd simply modify the program in an effort to prevent it, then repeat it.
+  Additionally, I would test the same variety of inputs with multiple clients connected, or the maximum number.
+  One issue I encountered was a broken pipe error when the telnet client would exit, crasing the main server. My solution was to capture SIGPIPE, and return SIG_IGN, to ignore it, and disconnect from the socket for the next one.
+  Another was inconsistent behavior of the recv function, which would retain some of the previous buffer without entirely overwriting. My best solution was to free and allocate a new bit of memory each time a new word was read, and the problem went away.

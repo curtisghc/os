@@ -1,0 +1,12 @@
+* Synopsis
+  checker [port] [dictionary]
+* Description
+  Checker will start a server for connection from multiple clients. Each client will input words for checking, and they will be logged to a logfile. Clients may exit either through quitting the client process, or entering nothing or 'q'. The server runs indefinitely, and should only exit through interruption.
+* Defaults
+  When called with no options, checker will create a server by default on the loopback address, 127.0.0.1, at port 24466. The default dictionary will be at "/usr/share/dict/words". It will initialize 5 threads to monitor available sockets, and recieve connectins. Total threads is a global variable, and easily modified.
+* Client
+  Clients, for example telnet, connect to the server at it's running address, and port. The server will use a producers consumers solution to assign connected sockets to threads. Then, they will input words to be returned with their correctness value appended, until the cilent chooses to quit. When a return key or the single character 'q' is entered, the client will quit, and open a slot for another client. Otherwise, the client may exit manually, for example the "C-]" to interrupt telnet. The same process will cause the client to exit.
+* Server Threads
+  Each server thread will wait for a broadcast from the main thread's condition variable, and wake up to recieve input from the client. upon recieving input, the correctness of that input will be appended, and sent back to the cilent. Then, the worker will acquire a spinlock for writing to the log queue, and enqueue that word. Finally it will loop to recieve new input, or quit and acquire a new socket.
+* Log Threads
+  A log worker thread will initialize a file for overwritting, and then acquire a spinlock to write each time a new word is added to the log queue.

@@ -35,20 +35,13 @@ char *DEFAULT_ADDRESS = "127.0.0.1";
 
 int NUM_THREADS = 5;
 
-sig_atomic_t gotint = 0;
-
 //synchronization primates
 pthread_mutex_t LOG_MTX = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t MAIN_MTX = PTHREAD_MUTEX_INITIALIZER;
 
 //pthread_mutex_t testlock = PTHREAD_MUTEX_INITIALIZER;
-
-pthread_cond_t LOG_PRODUCE_CV = PTHREAD_COND_INITIALIZER;
-pthread_cond_t LOG_CONSUME_CV = PTHREAD_COND_INITIALIZER;
-
 pthread_cond_t MAIN_CONSUME_CV = PTHREAD_COND_INITIALIZER;
 pthread_cond_t MAIN_PRODUCE_CV = PTHREAD_COND_INITIALIZER;
-
 
 
 typedef struct prims{
@@ -73,6 +66,7 @@ void *recieve_connection(void *args);
 void *write_log(void *args);
 
 
+//open filename and return file pointer for reading
 FILE *open_dict(char *path){
   FILE *fp = fopen(path, "r");
   if(fp == NULL){
@@ -150,17 +144,7 @@ void import_args(int argc, char **argv){
   }
 }
 
-//doesn't work, don't use
-void free_wl(char **wl){
-  char **temp = wl;
-  wl++;
-  while(*wl != NULL){
-	free(*wl);
-	wl++;
-  }
-  free(temp);
-}
-
+//return 1 if word is in dict, or 0 if not
 int check_word(char **dict, char *word){
   while(*dict != NULL){
 	if(strcmp(*dict, word) == 0){
@@ -171,10 +155,8 @@ int check_word(char **dict, char *word){
   return 0;
 }
 
-void handle_sigpipe(){
-  gotint = 1;
-}
-
+//worker function, consume socket from socket queue, read input,
+//return correctness of word
 void *recieve_connection(void *args){
   struct prims *prims = (struct prims *) args;
 
@@ -220,19 +202,13 @@ void *recieve_connection(void *args){
 	  sscanf((char *) buf, "%s\n", word);
 
 	  //handle client exiting, give exit conditions
-	  signal(SIGPIPE, handle_sigpipe);
+	  signal(SIGPIPE, SIG_IGN);
 
-	  if(gotint || *word == '\0' || strcmp(word, "q") == 0){
+	  if(*word == '\0' || strcmp(word, "q") == 0){
 		free(buf);
 		free(word);
 		break;
 	  }
-
-	  //quit condition
-	  /*
-	  if(*word == '\0' || strcmp(word, "q") == 0)
-		break;
-	  */
 
 	  if(check_word(wl, word) == 1){
 		strcat(word, yes);
@@ -258,6 +234,8 @@ void *recieve_connection(void *args){
   pthread_exit(NULL);
 }
 
+//work function for writing log. initialize file to 0,
+//use spinlock to read from log queue, append to file
 void *write_log(void *args){
   struct prims *prims = (struct prims *) args;
 
@@ -323,7 +301,6 @@ int main(int argc, char **argv){
   printf("Listening on at: %s\n", DEFAULT_PORT);
   addr_size = sizeof their_addr;
 
-
   //word queue for writing to log
   struct queue *word_queue = (queue *) malloc(sizeof(queue));
   word_queue->size = 0;
@@ -335,7 +312,6 @@ int main(int argc, char **argv){
 	sockids[count] = -1;
   }
 
-
   //create primitives struct for easy passing
   struct prims *prims = (struct prims *) malloc(sizeof(prims));
   prims->socket_index = (int *) malloc(sizeof(int));
@@ -345,9 +321,8 @@ int main(int argc, char **argv){
   prims->filename = "logfile";
   prims->word_queue = word_queue;
 
-
-  //create one thread, send to work on log writing and then
   //create num_threads threads, send them to wait for sockids to open
+  //create one thread, send to work on log writing and then
   pthread_t tid;
   for(int i = 0; i < NUM_THREADS; i++){
 	pthread_create(&tid, NULL, recieve_connection, prims);
@@ -355,7 +330,6 @@ int main(int argc, char **argv){
   }
 
   pthread_create(&tid, NULL, write_log, prims);
-
 
   int newid;
   for(int index = 0; ; index = (index + 1) % NUM_THREADS){
@@ -394,8 +368,3 @@ int main(int argc, char **argv){
 
   return 0;
 }
-
-/*
-  can a semaphore be used rather than a condition variable -- must use cv
-  instructions say not to create a client -- don't need to make a client
- */
