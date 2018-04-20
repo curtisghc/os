@@ -300,7 +300,7 @@ int main(int argc, char **argv){
   bind(sockfd, res->ai_addr, res->ai_addrlen);
   listen(sockfd, NUM_THREADS);
   //this doesn't print the correct address or port
-  printf("Listening on at: %s\n", DEFAULT_PORT);
+  printf("Listening\n");
   addr_size = sizeof their_addr;
 
   //word queue for writing to log
