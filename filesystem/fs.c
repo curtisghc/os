@@ -33,18 +33,19 @@ typedef struct entry{
   char attribute;
   time_t last_access;
   int size;
-  int blocks[64];
+  char blocks[64];
 }entry;
 
 //directory block structure, used to format directory data
 typedef struct directory_block{
-  entry entries[16];
+  entry entries[8];
 }directory_block;
 
 //globals
-int BS = 4096;
+int BS = 512;
 int DRIVE_SIZE;
 int FAT_SIZE;
+int DIR_ENTRIES = 8;
 char *DRIVE_INITIAL;
 
 //seeking functions
@@ -165,7 +166,7 @@ entry empty_entry(){
 
 //return the location in the directory array for the entry of a given name
 int find_entry(directory_block dir, char *name){
-  for(int i = 0; i < 16; i++){
+  for(int i = 0; i < DIR_ENTRIES; i++){
 	if(strcmp(dir.entries[i].name, name) == 0){
 	  return i;
 	}
@@ -175,7 +176,7 @@ int find_entry(directory_block dir, char *name){
 
 //find the first available open entry in the directory
 int find_empty_entry(directory_block dir){
-  for(int i = 0; i < 16; i++){
+  for(int i = 0; i < DIR_ENTRIES; i++){
 	if(dir.entries[i].blocks[0] == 0){
 	  return i;
 	}
@@ -262,7 +263,7 @@ int create_directory(char *drive, char *name){
   memcpy(new_dir.name, name, 8);
   new_dir.attribute = 'd';
   new_dir.last_access = time(NULL);
-  new_dir.size = sizeof(directory_block);//BS;
+  new_dir.size = BS;
   new_dir.blocks[0] = location;
 
   dir.entries[i] = new_dir;
@@ -294,7 +295,7 @@ int delete_directory(char *drive, char *name){
   /*kind of excessive, i don't really want to do this
   directory_block sub = get_db(&drive[jump_block(e.blocks[0])]);
   char attr;
-  for(int i = 0; i < 16; i++){
+  for(int i = 0; i < DIR_ENTRIES; i++){
 	attr = sub.entries[i].attribute;
 	if(attr == 'f'){
 	  delete_file(&drive[jump_block(e.blocks[0])], sub.entries[i].name);
@@ -381,7 +382,7 @@ int list_files(char *drive){
   char attr;
   int size;
 
-  for(int i = 0; i < 16; i++){
+  for(int i = 0; i < DIR_ENTRIES; i++){
 	file = db.entries[i];
 
 	attr = file.attribute;
@@ -479,7 +480,7 @@ int repl(char *p_map){
 	  }
 	}else if(strcmp(command, "format") == 0){
 	  printf("This drive is %d bytes long.\n", DRIVE_SIZE);
-	  printf("It will be formatted into %d byte blocks.\n", BS);
+	  printf("It is now formatted into %d byte blocks.\n", BS);
 	  //printf("Are you sure you want to format? (y/n): ");
 	  location = format(p_map);
 	}else if(strcmp(command, "ls") == 0){
@@ -520,11 +521,14 @@ int main(int argc, char **argv){
   //initialize globals
   DRIVE_SIZE = fsize = (int) lseek(fd, 0, SEEK_END);
   FAT_SIZE = fsize / BS;
+  //DIR_ENTRIES = (int) (sizeof(directory_block) / sizeof(entry));
+  //printf("%d\n", DIR_ENTRIES);
 
   p_map = (char *) mmap(0, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   DRIVE_INITIAL = p_map;
 
   printf("%d\n",(int) sizeof(entry));
+  printf("%d\n", (int) sizeof(short));
 
   repl(p_map);
 
