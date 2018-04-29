@@ -1,3 +1,22 @@
+/*
+  fs.c is an interface loop that has a variety of filesystem operations
+  the file will be initialized to all zeroes when formatted, and functions
+  such as touch or write allow the user to write or modify files within the
+  file system
+
+  an absolute "location" for the directory block allows traversal of the
+  directory tree
+
+  files are just entries of metadata, such as the name, that contain a list of
+  blocks where that data is stored
+  directories are just files with one data block which is formatted to be an
+  array of more entries
+
+  the fat contains the first portion of the drive, and is a table of reserved
+  blocks. available blocks for writing will be formatted as "0", while reserved
+  blocks will be listed as "ff"
+
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,64 +27,67 @@
 #include <string.h>
 #include <sys/mman.h>
 
+//file struct data, fills directory block
 typedef struct entry{
-  char name[8];
+  char name[13];
   char attribute;
   time_t last_access;
   int size;
   int blocks[64];
 }entry;
 
-
+//directory block structure, used to format directory data
 typedef struct directory_block{
   entry entries[16];
 }directory_block;
 
-int BS = 512;
+//globals
+int BS = 4096;
 int DRIVE_SIZE;
 int FAT_SIZE;
 char *DRIVE_INITIAL;
 
 //seeking functions
 int jump_block(int location);
-
-//helping and initialization functions
-int mark_block(int location);
-int unmark_block(int location);
-
-int zero_drive();
-int create_root(char *drive);
 directory_block get_db(char *drive);
 int get_block(char *drive, char *name);
 int find_entry(directory_block dir, char *name);
 int find_empty_entry(directory_block drive);
 
+//initialization functions
+int mark_block(int location);
+int unmark_block(int location);
 entry empty_entry();
 
-//main functionality need to structure this into repl loop
+int zero_drive();
+int create_root(char *drive);
+int format_drive();
+
+
+//main functionality
+int create_directory(char *drive, char *name);
+int delete_directory(char *drive, char *name);
+
 int create_file(char *drive, char *name);
 int delete_file(char *drive, char *name);
+
 int read_file(char *drive, char *name, char *data);
 int write_file(char *drive, char *name, char *data, int size);
 
-int create_directory(char *drive, char *name);
-int delete_directory(char *drive, char *name);
-//int change_directory(char *drive, char *name);
-int list_files(char *drive);
-
-
+//ui function layers
 void help_message();
-
-//initilization & formatting
-int format_drive();
+int list_files(char *drive);
 int dispatch(char *drive, int location, char *command, char *operand);
+int repl(char *p_map);
 
+
+//takes relative block location, converts it to absolute
 int jump_block(int location){
   //jumps to block, offset by FAT
   return BS * location + FAT_SIZE;
 }
 
-
+//overwrite the entire drive with zeroes
 int zero_drive(){
   for(int i = 0; i < DRIVE_SIZE; i++){
 	DRIVE_INITIAL[i] = 0;
@@ -73,15 +95,7 @@ int zero_drive(){
   return 0;
 }
 
-int drive_size(char *drive){
-  int i = 0;
-  while(drive != NULL){
-	drive++;
-	i++;
-  }
-  return i;
-}
-
+//return the first available, open block from fat
 int free_block(){
   for(int i = 0; i < FAT_SIZE; i++){
 	if(DRIVE_INITIAL[i] == 0){
@@ -91,12 +105,13 @@ int free_block(){
   return -1;
 }
 
+//mark a block at locatation to be reserved
 int mark_block(int location){
   DRIVE_INITIAL[location] = 255;
   return 0;
 }
 
-//must be absolute
+//free block in fat for overwriting
 int unmark_block(int location){
   DRIVE_INITIAL[location] = 0;
   /* if you want to zero every block on deletion
@@ -114,6 +129,7 @@ directory_block get_db(char *drive){
   return db;
 }
 
+//returns the first block for a given file in the directory at current drive pointer
 int get_block(char *drive, char *name){
   if(strcmp(name, "root") == 0){
 	return 0;
@@ -123,7 +139,7 @@ int get_block(char *drive, char *name){
   if(i == -1){
 	fprintf(stderr, "%s: directory not found\n", name);
 	return -1;
-  }else if(dir.entries[i].attribute == 'f'){
+  }else if(dir.entries[i].attribute != 'd'){
 	fprintf(stderr, "%s: not a directory\n", name);
 	return -1;
   }else{
@@ -132,9 +148,10 @@ int get_block(char *drive, char *name){
   }
 }
 
+//create and return a dummy entry for the directory
 entry empty_entry(){
   entry e;
-  for(int i = 0; i < 8; i++){
+  for(int i = 0; i < (int) sizeof(e.name); i++){
 	e.name[i] = 0;
   }
   e.attribute = 0;
@@ -146,6 +163,7 @@ entry empty_entry(){
   return e;
 }
 
+//return the location in the directory array for the entry of a given name
 int find_entry(directory_block dir, char *name){
   for(int i = 0; i < 16; i++){
 	if(strcmp(dir.entries[i].name, name) == 0){
@@ -155,6 +173,7 @@ int find_entry(directory_block dir, char *name){
   return -1;
 }
 
+//find the first available open entry in the directory
 int find_empty_entry(directory_block dir){
   for(int i = 0; i < 16; i++){
 	if(dir.entries[i].blocks[0] == 0){
@@ -164,18 +183,20 @@ int find_empty_entry(directory_block dir){
   return -1;
 }
 
+//initialize the root directory at location 0
 int create_root(char *drive){
   int location = 0;
   //int block_location = jump_block(location);
   mark_block(location);
 
   directory_block root;
-  //memcpy(&root, &drive[jump_block(location)], BS);
+  memcpy(&root, &drive[jump_block(location)], BS);
   memcpy(&drive[jump_block(location)], &root, BS);
 
   return 0;
 }
 
+//takes a name and a location for the drive pointer to make a file at the given directory
 int create_file(char *drive, char *name){
 
   //import parent directory, find space for sub
@@ -188,7 +209,7 @@ int create_file(char *drive, char *name){
   mark_block(location);
 
   struct entry e;
-  memcpy(e.name, name, 8);
+  memcpy(e.name, name, sizeof(e.name));
   e.attribute = 'f';
   e.last_access = time(NULL);
   e.size = 0;
@@ -202,13 +223,18 @@ int create_file(char *drive, char *name){
   return location;
 }
 
+//remove a file and unmark it's blocks from the directory list
 int delete_file(char *drive, char *name){
   directory_block dir = get_db(drive);
   int i = find_entry(dir, name);
   if(i == -1){
 	fprintf(stderr, "%s: file not found\n", name);
 	return -1;
+  }else if(dir.entries[i].attribute != 'f'){
+	fprintf(stderr, "%s: not a file\n", name);
+	return -1;
   }
+
   //unmark blocks associated with file
   int size = dir.entries[i].size;
   int num_blocks = size / BS + 1;
@@ -221,6 +247,7 @@ int delete_file(char *drive, char *name){
   return 0;
 }
 
+//initialize a new directory within the one given with this name
 int create_directory(char *drive, char *name){
 
   //find spot in parent directory
@@ -235,7 +262,7 @@ int create_directory(char *drive, char *name){
   memcpy(new_dir.name, name, 8);
   new_dir.attribute = 'd';
   new_dir.last_access = time(NULL);
-  new_dir.size = BS;
+  new_dir.size = sizeof(directory_block);//BS;
   new_dir.blocks[0] = location;
 
   dir.entries[i] = new_dir;
@@ -245,6 +272,7 @@ int create_directory(char *drive, char *name){
   return location;
 }
 
+//remove a directory and it's contents from a directory listing
 int delete_directory(char *drive, char *name){
   directory_block dir = get_db(drive);
   int i  = find_entry(dir, name);
@@ -252,7 +280,11 @@ int delete_directory(char *drive, char *name){
   if(i == -1){
 	fprintf(stderr, "%s: directory not found\n", name);
 	return -1;
+  }else if(dir.entries[i].attribute != 'd'){
+	fprintf(stderr, "%s: not a directory\n", name);
+	return -1;
   }
+
   //erase previous entry position from directory
   dir.entries[i] = empty_entry();
   memcpy(drive, &dir, BS);
@@ -276,6 +308,7 @@ int delete_directory(char *drive, char *name){
   return 0;
 }
 
+//reads data from a file of name and puts it into the pointer data
 int read_file(char *drive, char *name, char *data){
   //char *contents = (char *) malloc(64);
   directory_block dir = get_db(drive);
@@ -285,7 +318,7 @@ int read_file(char *drive, char *name, char *data){
 	return -1;
   }
   entry file = dir.entries[i];
-  if(file.attribute == 'd'){
+  if(file.attribute != 'f'){
 	fprintf(stderr, "%s: not a file\n", name);
 	return -1;
   }
@@ -303,6 +336,7 @@ int read_file(char *drive, char *name, char *data){
   return 0;
 }
 
+//reads data from datapointer, and given a size, overwrites to the file specified
 int write_file(char *drive, char *name, char *data, int size){
   directory_block dir = get_db(drive);
   int i = find_entry(dir, name);
@@ -311,7 +345,7 @@ int write_file(char *drive, char *name, char *data, int size){
 	return -1;
   }
   struct entry file = dir.entries[i];
-  if(file.attribute == 'd'){
+  if(file.attribute != 'f'){
 	fprintf(stderr, "\n%s: not a file\n", name);
 	return -1;
   }
@@ -337,6 +371,7 @@ int write_file(char *drive, char *name, char *data, int size){
   return size;
 }
 
+//iterate through a directory and print out real files
 int list_files(char *drive){
   directory_block db = get_db(drive);
 
@@ -370,11 +405,13 @@ int list_files(char *drive){
   return 0;
 }
 
+//zero the drive and create root, prepare drive for operations
 int format(char *drive){
   zero_drive(drive);
   return create_root(drive);
 }
 
+//manage inputs from user, associate and run functions
 int dispatch(char *drive, int location, char *command, char *operand){
   char *buffer = (char *) malloc(32768);
   *buffer = '\0';
@@ -382,7 +419,7 @@ int dispatch(char *drive, int location, char *command, char *operand){
   if(strcmp(command, "mkdir") == 0){
 	create_directory(&drive[jump_block(location)], operand);
   }else if(strcmp(command, "rmdir") == 0){
-	delete_file(&drive[jump_block(location)], operand);
+	delete_directory(&drive[jump_block(location)], operand);
   }else if(strcmp(command, "touch") == 0){
 	create_file(&drive[jump_block(location)], operand);
   }else if(strcmp(command, "rm") == 0){
@@ -403,6 +440,7 @@ int dispatch(char *drive, int location, char *command, char *operand){
   return 0;
 }
 
+//print out possible comands for user
 void help_message(){
   printf("Commands for filesystem operations:\n");
   printf("ls \t\t\t: List files in current directory\n");
@@ -416,6 +454,51 @@ void help_message(){
   printf("format \t\t\t: Format the file system\n");
   printf("q \t\t\t: Quit\n");
   printf("h \t\t\t: Print this help dialogue\n");
+}
+
+//main function loop
+int repl(char *p_map){
+  char command[10];
+  char operand[20];
+
+  int location = 0;
+  int new_location;
+
+  help_message();
+  while(strcmp(command, "q") != 0){
+	printf("> ");
+	fscanf(stdin, "%s", command);
+
+	if(strcmp(command, "cd") == 0){
+	  //printf("Choose a file to \"%s\"\n", command);
+	  //printf("> ");
+	  fscanf(stdin, "%s", operand);
+	  new_location = get_block(&p_map[jump_block(location)], operand);
+	  if(new_location != -1){
+		location = new_location;
+	  }
+	}else if(strcmp(command, "format") == 0){
+	  printf("This drive is %d bytes long.\n", DRIVE_SIZE);
+	  printf("It will be formatted into %d byte blocks.\n", BS);
+	  //printf("Are you sure you want to format? (y/n): ");
+	  location = format(p_map);
+	}else if(strcmp(command, "ls") == 0){
+	  list_files(&p_map[jump_block(location)]);
+	}else if(strcmp(command, "h") == 0){
+	  help_message();
+	}else if(strcmp(command, "q") == 0){
+	}else{
+	  /*
+	  if(*operand == '\0'){
+		printf("Choose a file to \"%s\": " , command);
+	  }
+	  */
+	  fscanf(stdin, "%s", operand);
+	  dispatch(p_map, location, command, operand);
+	  *operand = '\0';
+	}
+  }
+  return 0;
 }
 
 int main(int argc, char **argv){
@@ -441,91 +524,31 @@ int main(int argc, char **argv){
   p_map = (char *) mmap(0, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   DRIVE_INITIAL = p_map;
 
+  printf("%d\n",(int) sizeof(entry));
 
-  //repl loop for fs operations -- needs to be better
-  //
-  char command[10];
-  char operand[10];
-
-  int location = 0;
-  int new_location;
-
-  help_message();
-  while(strcmp(command, "q") != 0){
-	printf("> ");
-	fscanf(stdin, "%s", command);
-
-	if(strcmp(command, "cd") == 0){
-	  //printf("Choose a file to \"%s\"\n", command);
-	  //printf("> ");
-	  fscanf(stdin, "%s", operand);
-	  new_location = get_block(&p_map[jump_block(location)], operand);
-	  if(new_location != -1){
-		location = new_location;
-	  }
-	}else if(strcmp(command, "format") == 0){
-	  printf("Drive \"%s\" is %d bytes long.\n", drive_name, DRIVE_SIZE);
-	  printf("It will be formatted into %d byte blocks.\n", BS);
-	  //printf("Are you sure you want to format? (y/n): ");
-	  location = format(p_map);
-	}else if(strcmp(command, "ls") == 0){
-	  list_files(&p_map[jump_block(location)]);
-	}else if(strcmp(command, "h") == 0){
-	  help_message();
-	}else if(strcmp(command, "q") == 0){
-	}else{
-	  /*
-	  if(*operand == '\0'){
-		printf("Choose a file to \"%s\": " , command);
-	  }
-	  */
-	  fscanf(stdin, "%s", operand);
-	  dispatch(p_map, location, command, operand);
-	  *operand = '\0';
-	}
-  }
-
-  /*
-
-  int location = format(p_map);
-  printf("Root position --  %d\n", location);
-
-  //printf("%d\n", location);
-  //create_file(&p_map[jump_block(location)], "chg");
-  //write_file(&p_map[jump_block(location)], "chg", "1111", 5);
-  create_file(&p_map[jump_block(location)], "maddie");
-  write_file(&p_map[jump_block(location)], "maddie", "gay", 5);
-  //printf("%d\n", create_file(&p_map[jump_block(location)], "chg"));
-  //delete_file(&p_map[jump_block(location)], "chg");
-  //printf("%d\n", create_directory(&p_map[jump_block(location)], "dir"));
-
-  //read_file(&p_map[jump_block(location)], "chg");
-  //list_files(&p_map[jump_block(location)]);
-
-  location = create_file(&p_map[jump_block(location)], "inside");
-  create_file(&p_map[jump_block(location)], "gottem");
-  //list_files(&p_map[jump_block(location)]);
-
-  //char *contents = (char *) malloc(64);
-  read_file(&p_map[jump_block(location)], "maddie", contents);
-  printf("\n%s\n", contents);
-  //free(contents);
-  */
-
+  repl(p_map);
 
   munmap(p_map, DRIVE_SIZE);
 
   /*
-	cleanup schmutz output, phantom files -- solved
-	better input methods for format(y/n) -- fuck that
-	handle enter -- not really solved, but i don't want it to be a big deal
-	allow multi, word entries for write -- solved
-	write can't handle more than 8 bytes -- solved
-	infinite loop when rm file -- solved
-	rmdir just doesn't work -- solved
+	solved -- cleanup schmutz output, phantom files
+  unsolved -- better input methods for format(y/n)
+	solved -- handle enter
+	solved -- allow multi, word entries for write
+	selved -- write can't handle more than 8 bytes
+	solved -- infinite loop when rm file
+	solved -- rmdir just doesn't work
   */
-  //create file, create directory, create root
-  //all search of empty space by entry[i].blocks[0] != 0
-  //this is bad
-  //should be fixed
+
+
+  /*
+
+	issue is that directory block is a total of 4068 bytes!
+	guess what 4086 / 16 is? it's 288, which means only two entries are allowed
+	how to fix?
+	multiple block directories?
+	how about just giant block sizes!
+
+
+  */
 }

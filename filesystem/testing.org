@@ -1,0 +1,5 @@
+* Testing
+Testing this program was very difficult. The majority of the time, I would use "hexdump" for the drive file with the watch command to keep it constantly updating. That way, every time the drive was updated, I could see exactly how the update was being implemented on the drive, and if there was any issue with it.
+A major issue I encountered was directories not traversing correctly with cd, where either nothing would happen, or the directory would loop back to root. The solution was not simple, it just required cleaning the functions to be more efficient and elegant.
+With the filesystem, issues would often be non-repeatable, or related to the state of the drive itself. Because of that, there was no simple logic error to fix, and instead, I wolud have to go back to problematic functions and make them simpler and cleaner. That is how I fixed most of my issues.
+Adding checking for user commands was also a trial because of the variety of possibilities. In general, an issue with commands would appear as a segfault, and I was able to eliminate many of them by simply adding in better checks for the string inputs.
