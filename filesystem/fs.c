@@ -517,18 +517,13 @@ int main(int argc, char **argv){
 	fprintf(stderr, "%s: Drive not found\n", *argv);
 	return 1;
   }
-  //fd = open("Drive10MB", O_RDWR | O_APPEND | O_CREAT);
+
   //initialize globals
   DRIVE_SIZE = fsize = (int) lseek(fd, 0, SEEK_END);
   FAT_SIZE = fsize / BS;
-  //DIR_ENTRIES = (int) (sizeof(directory_block) / sizeof(entry));
-  //printf("%d\n", DIR_ENTRIES);
 
   p_map = (char *) mmap(0, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   DRIVE_INITIAL = p_map;
-
-  printf("%d\n",(int) sizeof(entry));
-  printf("%d\n", (int) sizeof(short));
 
   repl(p_map);
 
@@ -545,14 +540,4 @@ int main(int argc, char **argv){
   */
 
 
-  /*
-
-	issue is that directory block is a total of 4068 bytes!
-	guess what 4086 / 16 is? it's 288, which means only two entries are allowed
-	how to fix?
-	multiple block directories?
-	how about just giant block sizes!
-
-
-  */
 }
